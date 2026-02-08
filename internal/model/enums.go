@@ -66,6 +66,24 @@ func (p Priority) Valid() bool {
 	return validPriorities[p]
 }
 
+// Rank returns a sort rank for priority (lower = higher priority).
+func (p Priority) Rank() int {
+	switch p {
+	case PriorityCritical:
+		return 0
+	case PriorityHigh:
+		return 1
+	case PriorityMedium:
+		return 2
+	case PriorityLow:
+		return 3
+	case PriorityNone:
+		return 4
+	default:
+		return 5
+	}
+}
+
 func (p *Priority) UnmarshalJSON(data []byte) error {
 	var str string
 	if err := json.Unmarshal(data, &str); err != nil {
