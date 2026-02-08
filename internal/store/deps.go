@@ -192,6 +192,13 @@ func (s *Store) Deps(beadID string) (DepsResult, error) {
 	}, nil
 }
 
+// GetUnblocked is a public wrapper around ComputeUnblocked that acquires the read lock.
+func (s *Store) GetUnblocked(beadID string) []model.Bead {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.ComputeUnblocked(beadID)
+}
+
 // ComputeUnblocked finds beads that were blocked only by the given bead and are now
 // unblocked because that bead reached a terminal state (closed/resolved/wontfix/deleted).
 // Caller must hold s.mu (at least RLock).
