@@ -16,6 +16,13 @@ func NewRootCmd() *cobra.Command {
 
 	root.AddCommand(newServeCmd())
 	root.AddCommand(newWhoamiCmd())
+	root.AddCommand(newAddCmd())
+	root.AddCommand(newShowCmd())
+	root.AddCommand(newEditCmd())
+	root.AddCommand(newStatusCmd("close", "closed"))
+	root.AddCommand(newStatusCmd("resolve", "resolved"))
+	root.AddCommand(newStatusCmd("reopen", "open"))
+	root.AddCommand(newDeleteCmd())
 
 	return root
 }
