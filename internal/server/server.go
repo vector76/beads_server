@@ -46,10 +46,13 @@ func New(cfg Config, s *store.Store) (*Server, error) {
 	// All other API routes require auth
 	srv.Router.Group(func(r chi.Router) {
 		r.Use(srv.authMiddleware)
+		r.Get("/api/v1/beads", srv.handleListBeads)
 		r.Post("/api/v1/beads", srv.handleCreateBead)
 		r.Get("/api/v1/beads/{id}", srv.handleGetBead)
 		r.Patch("/api/v1/beads/{id}", srv.handleUpdateBead)
 		r.Delete("/api/v1/beads/{id}", srv.handleDeleteBead)
+		r.Post("/api/v1/beads/{id}/claim", srv.handleClaimBead)
+		r.Get("/api/v1/search", srv.handleSearch)
 	})
 
 	return srv, nil
