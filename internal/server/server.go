@@ -52,6 +52,10 @@ func New(cfg Config, s *store.Store) (*Server, error) {
 		r.Patch("/api/v1/beads/{id}", srv.handleUpdateBead)
 		r.Delete("/api/v1/beads/{id}", srv.handleDeleteBead)
 		r.Post("/api/v1/beads/{id}/claim", srv.handleClaimBead)
+		r.Post("/api/v1/beads/{id}/comments", srv.handleAddComment)
+		r.Post("/api/v1/beads/{id}/link", srv.handleLinkBead)
+		r.Delete("/api/v1/beads/{id}/link/{other_id}", srv.handleUnlinkBead)
+		r.Get("/api/v1/beads/{id}/deps", srv.handleGetDeps)
 		r.Get("/api/v1/search", srv.handleSearch)
 	})
 
