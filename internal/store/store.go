@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -118,6 +119,45 @@ func (s *Store) Get(id string) (model.Bead, error) {
 		return model.Bead{}, fmt.Errorf("bead %s not found", id)
 	}
 	return b, nil
+}
+
+// Resolve finds a bead by exact ID or unique prefix match.
+// Accepts both "bd-xxx" and "xxx" forms (auto-prepends "bd-" if missing).
+// Returns an error if the prefix is ambiguous (listing matching IDs) or not found.
+func (s *Store) Resolve(prefix string) (model.Bead, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	// Auto-prepend bd- if missing
+	if !strings.HasPrefix(prefix, "bd-") {
+		prefix = "bd-" + prefix
+	}
+
+	// Try exact match first
+	if b, ok := s.beads[prefix]; ok {
+		return b, nil
+	}
+
+	// Try prefix match
+	var matches []model.Bead
+	for id, b := range s.beads {
+		if strings.HasPrefix(id, prefix) {
+			matches = append(matches, b)
+		}
+	}
+
+	switch len(matches) {
+	case 0:
+		return model.Bead{}, fmt.Errorf("bead %s not found", prefix)
+	case 1:
+		return matches[0], nil
+	default:
+		ids := make([]string, len(matches))
+		for i, b := range matches {
+			ids[i] = b.ID
+		}
+		return model.Bead{}, fmt.Errorf("ambiguous prefix %s: matches %s", prefix, strings.Join(ids, ", "))
+	}
 }
 
 // UpdateFields specifies which fields to update on a bead.

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/yourorg/beads_server/internal/model"
@@ -271,6 +272,100 @@ func TestCRUDCycle(t *testing.T) {
 	}
 	if got2.Title != "Updated CRUD test" {
 		t.Errorf("expected updated title after reload, got %q", got2.Title)
+	}
+}
+
+// --- Resolve tests ---
+
+func createBeadWithID(t *testing.T, s *Store, id, title string) model.Bead {
+	t.Helper()
+	b := model.NewBead(title)
+	b.ID = id
+	created, err := s.Create(b)
+	if err != nil {
+		t.Fatalf("failed to create bead %s: %v", id, err)
+	}
+	return created
+}
+
+func TestResolveExactMatch(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	createBeadWithID(t, s, "bd-a1b2c3d4", "Exact match")
+
+	got, err := s.Resolve("bd-a1b2c3d4")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Title != "Exact match" {
+		t.Errorf("expected title 'Exact match', got %q", got.Title)
+	}
+}
+
+func TestResolveUniquePrefixMatch(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	createBeadWithID(t, s, "bd-a1b2c3d4", "First")
+	createBeadWithID(t, s, "bd-x9y8z7w6", "Second")
+
+	got, err := s.Resolve("bd-a1b")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Title != "First" {
+		t.Errorf("expected title 'First', got %q", got.Title)
+	}
+}
+
+func TestResolveAmbiguousPrefix(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	createBeadWithID(t, s, "bd-a1b2c3d4", "First")
+	createBeadWithID(t, s, "bd-a1b2xxxx", "Second")
+
+	_, err := s.Resolve("bd-a1b2")
+	if err == nil {
+		t.Fatal("expected error for ambiguous prefix")
+	}
+	if !strings.Contains(err.Error(), "ambiguous") {
+		t.Errorf("expected 'ambiguous' in error, got %q", err.Error())
+	}
+	// Error should list matching IDs
+	if !strings.Contains(err.Error(), "bd-a1b2c3d4") || !strings.Contains(err.Error(), "bd-a1b2xxxx") {
+		t.Errorf("expected matching IDs in error, got %q", err.Error())
+	}
+}
+
+func TestResolveNotFound(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	createBeadWithID(t, s, "bd-a1b2c3d4", "Exists")
+
+	_, err := s.Resolve("bd-zzz")
+	if err == nil {
+		t.Fatal("expected error for non-existent prefix")
+	}
+	if !strings.Contains(err.Error(), "not found") {
+		t.Errorf("expected 'not found' in error, got %q", err.Error())
+	}
+}
+
+func TestResolveWithoutBdPrefix(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	createBeadWithID(t, s, "bd-a1b2c3d4", "No prefix")
+
+	// Exact match without bd- prefix
+	got, err := s.Resolve("a1b2c3d4")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Title != "No prefix" {
+		t.Errorf("expected title 'No prefix', got %q", got.Title)
+	}
+
+	// Prefix match without bd- prefix
+	got, err = s.Resolve("a1b")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if got.Title != "No prefix" {
+		t.Errorf("expected title 'No prefix', got %q", got.Title)
 	}
 }
 
