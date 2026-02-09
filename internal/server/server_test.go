@@ -21,10 +21,12 @@ func testServer(t *testing.T) *Server {
 		t.Fatalf("Load: %v", err)
 	}
 
-	srv, err := New(Config{Port: 0, Token: testToken, DataFile: filepath.Join(dir, "beads.json")}, s)
+	p := NewSingleStoreProvider(testToken, s)
+	srv, err := New(Config{Port: 0, DataFile: filepath.Join(dir, "beads.json")}, p)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	srv.Store = s
 
 	// Add a test route behind the auth middleware to verify auth works
 	srv.Router.Group(func(r chi.Router) {
@@ -129,12 +131,9 @@ func TestAuthInvalidFormat(t *testing.T) {
 	}
 }
 
-func TestNewServerRequiresToken(t *testing.T) {
-	dir := t.TempDir()
-	s, _ := store.Load(filepath.Join(dir, "beads.json"))
-
-	_, err := New(Config{Port: 8080, Token: "", DataFile: "beads.json"}, s)
+func TestNewServerRequiresProvider(t *testing.T) {
+	_, err := New(Config{Port: 8080, DataFile: "beads.json"}, nil)
 	if err == nil {
-		t.Fatal("expected error when token is empty")
+		t.Fatal("expected error when provider is nil")
 	}
 }

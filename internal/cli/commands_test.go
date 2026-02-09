@@ -23,10 +23,12 @@ func startTestServer(t *testing.T) *httptest.Server {
 	if err != nil {
 		t.Fatalf("store.Load: %v", err)
 	}
-	srv, err := server.New(server.Config{Port: 0, Token: testToken, DataFile: filepath.Join(dir, "beads.json")}, s)
+	p := server.NewSingleStoreProvider(testToken, s)
+	srv, err := server.New(server.Config{Port: 0, DataFile: filepath.Join(dir, "beads.json")}, p)
 	if err != nil {
 		t.Fatalf("server.New: %v", err)
 	}
+	srv.Store = s
 	ts := httptest.NewServer(srv.Router)
 	t.Cleanup(ts.Close)
 	return ts

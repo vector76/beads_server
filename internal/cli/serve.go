@@ -53,11 +53,11 @@ func newServeCmd() *cobra.Command {
 
 			cfg := server.Config{
 				Port:     port,
-				Token:    token,
 				DataFile: dataFile,
 			}
 
-			srv, err := server.New(cfg, s)
+			p := server.NewSingleStoreProvider(token, s)
+			srv, err := server.New(cfg, p)
 			if err != nil {
 				return err
 			}

@@ -30,10 +30,12 @@ func crudServer(t *testing.T) *Server {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	srv, err := New(Config{Port: 0, Token: testToken, DataFile: filepath.Join(dir, "beads.json")}, s)
+	p := NewSingleStoreProvider(testToken, s)
+	srv, err := New(Config{Port: 0, DataFile: filepath.Join(dir, "beads.json")}, p)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
+	srv.Store = s
 	return srv
 }
 

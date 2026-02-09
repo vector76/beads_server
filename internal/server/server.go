@@ -1,6 +1,7 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -11,31 +12,35 @@ import (
 	"github.com/yourorg/beads_server/internal/store"
 )
 
+// contextKey is an unexported type for context keys in this package.
+type contextKey int
+
+const storeContextKey contextKey = iota
+
 // Config holds the server configuration.
 type Config struct {
 	Port     int
-	Token    string
 	DataFile string
 }
 
 // Server is the HTTP server for the beads API.
 type Server struct {
-	Router *chi.Mux
-	Store  *store.Store
-	config Config
+	Router   *chi.Mux
+	Store    *store.Store // retained for backward compatibility; handlers will migrate to storeFor(r)
+	provider StoreProvider
+	config   Config
 }
 
-// New creates a new Server with the given config and store.
-// Returns an error if the token is not configured.
-func New(cfg Config, s *store.Store) (*Server, error) {
-	if cfg.Token == "" {
-		return nil, fmt.Errorf("auth token must be configured")
+// New creates a new Server with the given config and provider.
+func New(cfg Config, p StoreProvider) (*Server, error) {
+	if p == nil {
+		return nil, fmt.Errorf("store provider must not be nil")
 	}
 
 	srv := &Server{
-		Router: chi.NewRouter(),
-		Store:  s,
-		config: cfg,
+		Router:   chi.NewRouter(),
+		provider: p,
+		config:   cfg,
 	}
 
 	srv.Router.Use(middleware.Recoverer)
@@ -67,7 +72,13 @@ func (s *Server) ListenAddr() string {
 	return fmt.Sprintf(":%d", s.config.Port)
 }
 
-// authMiddleware checks for a valid Bearer token.
+// storeFor retrieves the store from the request context (set by authMiddleware).
+func (s *Server) storeFor(r *http.Request) *store.Store {
+	return r.Context().Value(storeContextKey).(*store.Store)
+}
+
+// authMiddleware authenticates via the StoreProvider and stores the resolved
+// store in the request context.
 func (s *Server) authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		auth := r.Header.Get("Authorization")
@@ -82,12 +93,14 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 		}
 
 		token := strings.TrimPrefix(auth, "Bearer ")
-		if token != s.config.Token {
+		st := s.provider.Resolve(token)
+		if st == nil {
 			http.Error(w, `{"error":"invalid token"}`, http.StatusUnauthorized)
 			return
 		}
 
-		next.ServeHTTP(w, r)
+		ctx := context.WithValue(r.Context(), storeContextKey, st)
+		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
 
