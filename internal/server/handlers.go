@@ -99,7 +99,7 @@ func (s *Server) handleCreateBead(w http.ResponseWriter, r *http.Request) {
 		b.Assignee = req.Assignee
 	}
 
-	created, err := s.Store.Create(b)
+	created, err := s.storeFor(r).Create(b)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -112,7 +112,7 @@ func (s *Server) handleCreateBead(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	b, err := s.Store.Resolve(id)
+	b, err := s.storeFor(r).Resolve(id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -130,7 +130,7 @@ func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	// Resolve the ID first
-	existing, err := s.Store.Resolve(id)
+	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -193,7 +193,7 @@ func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 		fields.Tags = &tags
 	}
 
-	updated, err := s.Store.Update(existing.ID, fields)
+	updated, err := s.storeFor(r).Update(existing.ID, fields)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -201,7 +201,7 @@ func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 
 	// Check if status changed to a terminal state and compute unblocked
 	if req.Status != nil && isTerminalStatus(*req.Status) {
-		unblocked := s.Store.GetUnblocked(existing.ID)
+		unblocked := s.storeFor(r).GetUnblocked(existing.ID)
 		if len(unblocked) > 0 {
 			jsonOK(w, unblockedResponse{Bead: updated, Unblocked: unblocked})
 			return
@@ -216,7 +216,7 @@ func (s *Server) handleDeleteBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	// Resolve the ID first
-	existing, err := s.Store.Resolve(id)
+	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -226,14 +226,14 @@ func (s *Server) handleDeleteBead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deleted, err := s.Store.Delete(existing.ID)
+	deleted, err := s.storeFor(r).Delete(existing.ID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	// Compute unblocked beads
-	unblocked := s.Store.GetUnblocked(existing.ID)
+	unblocked := s.storeFor(r).GetUnblocked(existing.ID)
 	if len(unblocked) > 0 {
 		jsonOK(w, unblockedResponse{Bead: deleted, Unblocked: unblocked})
 		return

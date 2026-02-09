@@ -24,7 +24,7 @@ type linkRequest struct {
 func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	existing, err := s.Store.Resolve(id)
+	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -54,7 +54,7 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 		Text:   req.Text,
 	}
 
-	updated, err := s.Store.AddComment(existing.ID, comment)
+	updated, err := s.storeFor(r).AddComment(existing.ID, comment)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -67,7 +67,7 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleLinkBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	existing, err := s.Store.Resolve(id)
+	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -89,7 +89,7 @@ func (s *Server) handleLinkBead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve the target ID as well
-	target, err := s.Store.Resolve(req.BlockedBy)
+	target, err := s.storeFor(r).Resolve(req.BlockedBy)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -99,7 +99,7 @@ func (s *Server) handleLinkBead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := s.Store.Link(existing.ID, target.ID)
+	updated, err := s.storeFor(r).Link(existing.ID, target.ID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -113,7 +113,7 @@ func (s *Server) handleUnlinkBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	otherID := chi.URLParam(r, "other_id")
 
-	existing, err := s.Store.Resolve(id)
+	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -124,7 +124,7 @@ func (s *Server) handleUnlinkBead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve the other ID as well
-	other, err := s.Store.Resolve(otherID)
+	other, err := s.storeFor(r).Resolve(otherID)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -134,7 +134,7 @@ func (s *Server) handleUnlinkBead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := s.Store.Unlink(existing.ID, other.ID)
+	updated, err := s.storeFor(r).Unlink(existing.ID, other.ID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -147,7 +147,7 @@ func (s *Server) handleUnlinkBead(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetDeps(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	existing, err := s.Store.Resolve(id)
+	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -157,7 +157,7 @@ func (s *Server) handleGetDeps(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deps, err := s.Store.Deps(existing.ID)
+	deps, err := s.storeFor(r).Deps(existing.ID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return

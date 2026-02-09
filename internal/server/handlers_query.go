@@ -71,7 +71,7 @@ func (s *Server) handleListBeads(w http.ResponseWriter, r *http.Request) {
 		filters.Ready = true
 	}
 
-	result := s.Store.List(filters)
+	result := s.storeFor(r).List(filters)
 	jsonOK(w, result)
 }
 
@@ -88,7 +88,7 @@ func (s *Server) handleSearch(w http.ResponseWriter, r *http.Request) {
 	page := intParam(q.Get("page"), 1)
 	perPage := intParam(q.Get("per_page"), 100)
 
-	result := s.Store.Search(query, page, perPage)
+	result := s.storeFor(r).Search(query, page, perPage)
 	jsonOK(w, result)
 }
 
@@ -102,7 +102,7 @@ func (s *Server) handleClaimBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
 	// Resolve the ID first
-	existing, err := s.Store.Resolve(id)
+	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
 		if strings.Contains(err.Error(), "not found") {
 			jsonError(w, err.Error(), http.StatusNotFound)
@@ -123,7 +123,7 @@ func (s *Server) handleClaimBead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claimed, err := s.Store.Claim(existing.ID, req.User)
+	claimed, err := s.storeFor(r).Claim(existing.ID, req.User)
 	if err != nil {
 		var conflictErr *store.ConflictError
 		if errors.As(err, &conflictErr) {
