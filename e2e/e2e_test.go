@@ -304,9 +304,9 @@ func TestMultiProjectIsolation(t *testing.T) {
 		t.Fatalf("store.Load s2: %v", err)
 	}
 
-	p := server.NewMultiStoreProvider(map[string]*store.Store{
-		token1: s1,
-		token2: s2,
+	p := server.NewMultiStoreProvider([]server.ProviderEntry{
+		{Name: "webapp", Token: token1, Store: s1},
+		{Name: "backend", Token: token2, Store: s2},
 	})
 	srv, err := server.New(server.Config{Port: 0}, p)
 	if err != nil {

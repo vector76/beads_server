@@ -155,9 +155,9 @@ func TestMultiProjectAuth(t *testing.T) {
 	token1 := "tok-project1"
 	token2 := "tok-project2"
 
-	p := NewMultiStoreProvider(map[string]*store.Store{
-		token1: s1,
-		token2: s2,
+	p := NewMultiStoreProvider([]ProviderEntry{
+		{Name: "project1", Token: token1, Store: s1},
+		{Name: "project2", Token: token2, Store: s2},
 	})
 
 	srv, err := New(Config{Port: 0}, p)

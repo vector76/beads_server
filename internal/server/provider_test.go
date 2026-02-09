@@ -48,15 +48,33 @@ func TestSingleProvider_EmptyToken(t *testing.T) {
 	}
 }
 
+// --- singleStoreProvider.Projects tests ---
+
+func TestSingleProvider_Projects(t *testing.T) {
+	s := loadTestStore(t)
+	p := NewSingleStoreProvider("tok-abc", s)
+
+	projects := p.Projects()
+	if len(projects) != 1 {
+		t.Fatalf("expected 1 project, got %d", len(projects))
+	}
+	if projects[0].Name != "default" {
+		t.Errorf("expected name %q, got %q", "default", projects[0].Name)
+	}
+	if projects[0].Store != s {
+		t.Error("expected the store to match")
+	}
+}
+
 // --- multiStoreProvider tests ---
 
 func TestMultiProvider_KnownTokens(t *testing.T) {
 	s1 := loadTestStore(t)
 	s2 := loadTestStore(t)
 
-	p := NewMultiStoreProvider(map[string]*store.Store{
-		"tok-one": s1,
-		"tok-two": s2,
+	p := NewMultiStoreProvider([]ProviderEntry{
+		{Name: "proj-one", Token: "tok-one", Store: s1},
+		{Name: "proj-two", Token: "tok-two", Store: s2},
 	})
 
 	if got := p.Resolve("tok-one"); got != s1 {
@@ -69,8 +87,8 @@ func TestMultiProvider_KnownTokens(t *testing.T) {
 
 func TestMultiProvider_UnknownToken(t *testing.T) {
 	s1 := loadTestStore(t)
-	p := NewMultiStoreProvider(map[string]*store.Store{
-		"tok-one": s1,
+	p := NewMultiStoreProvider([]ProviderEntry{
+		{Name: "proj-one", Token: "tok-one", Store: s1},
 	})
 
 	got := p.Resolve("tok-unknown")
@@ -79,8 +97,49 @@ func TestMultiProvider_UnknownToken(t *testing.T) {
 	}
 }
 
-func TestMultiProvider_EmptyMap(t *testing.T) {
-	p := NewMultiStoreProvider(map[string]*store.Store{})
+func TestMultiProvider_Projects(t *testing.T) {
+	s1 := loadTestStore(t)
+	s2 := loadTestStore(t)
+
+	p := NewMultiStoreProvider([]ProviderEntry{
+		{Name: "alpha", Token: "tok-a", Store: s1},
+		{Name: "beta", Token: "tok-b", Store: s2},
+	})
+
+	projects := p.Projects()
+	if len(projects) != 2 {
+		t.Fatalf("expected 2 projects, got %d", len(projects))
+	}
+	if projects[0].Name != "alpha" || projects[0].Store != s1 {
+		t.Errorf("projects[0] = {%q, %v}, want {%q, s1}", projects[0].Name, projects[0].Store, "alpha")
+	}
+	if projects[1].Name != "beta" || projects[1].Store != s2 {
+		t.Errorf("projects[1] = {%q, %v}, want {%q, s2}", projects[1].Name, projects[1].Store, "beta")
+	}
+}
+
+func TestMultiProvider_ProjectsDoesNotExposeToken(t *testing.T) {
+	s := loadTestStore(t)
+	p := NewMultiStoreProvider([]ProviderEntry{
+		{Name: "proj", Token: "secret-tok", Store: s},
+	})
+
+	projects := p.Projects()
+	// ProjectInfo has no Token field — this is a compile-time guarantee.
+	// We verify the returned data only contains Name and Store.
+	if len(projects) != 1 {
+		t.Fatalf("expected 1 project, got %d", len(projects))
+	}
+	if projects[0].Name != "proj" {
+		t.Errorf("expected name %q, got %q", "proj", projects[0].Name)
+	}
+	if projects[0].Store != s {
+		t.Error("expected the store to match")
+	}
+}
+
+func TestMultiProvider_EmptyEntries(t *testing.T) {
+	p := NewMultiStoreProvider([]ProviderEntry{})
 
 	got := p.Resolve("anything")
 	if got != nil {
@@ -92,14 +151,16 @@ func TestMultiProvider_IsolatedFromExternalMutation(t *testing.T) {
 	s1 := loadTestStore(t)
 	s2 := loadTestStore(t)
 
-	m := map[string]*store.Store{"tok-one": s1}
-	p := NewMultiStoreProvider(m)
+	entries := []ProviderEntry{
+		{Name: "proj-one", Token: "tok-one", Store: s1},
+	}
+	p := NewMultiStoreProvider(entries)
 
-	// Mutate the original map after construction.
-	m["tok-two"] = s2
+	// Mutate the original slice after construction.
+	entries = append(entries, ProviderEntry{Name: "proj-two", Token: "tok-two", Store: s2})
 
 	if got := p.Resolve("tok-two"); got != nil {
-		t.Fatal("provider should not be affected by external map mutation")
+		t.Fatal("provider should not be affected by external slice mutation")
 	}
 	// Original mapping should still work.
 	if got := p.Resolve("tok-one"); got != s1 {

@@ -60,16 +60,20 @@ func newServeCmd() *cobra.Command {
 					return err
 				}
 
-				stores := make(map[string]*store.Store, len(entries))
-				for _, e := range entries {
+				providerEntries := make([]server.ProviderEntry, len(entries))
+				for i, e := range entries {
 					s, err := store.Load(e.DataFile)
 					if err != nil {
 						return fmt.Errorf("loading data file for project %q: %w", e.Name, err)
 					}
-					stores[e.Token] = s
+					providerEntries[i] = server.ProviderEntry{
+						Name:  e.Name,
+						Token: e.Token,
+						Store: s,
+					}
 				}
 
-				provider = server.NewMultiStoreProvider(stores)
+				provider = server.NewMultiStoreProvider(providerEntries)
 			} else {
 				// Single-project mode
 				if !cmd.Flags().Changed("data-file") {

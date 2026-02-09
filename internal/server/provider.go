@@ -2,10 +2,25 @@ package server
 
 import "github.com/yourorg/beads_server/internal/store"
 
+// ProjectInfo exposes a project's name and store without auth details.
+type ProjectInfo struct {
+	Name  string
+	Store *store.Store
+}
+
+// ProviderEntry is the input to NewMultiStoreProvider: a named project with
+// its auth token and backing store.
+type ProviderEntry struct {
+	Name  string
+	Token string
+	Store *store.Store
+}
+
 // StoreProvider resolves a bearer token to a Store.
 // Returns nil if the token is not recognized.
 type StoreProvider interface {
 	Resolve(token string) *store.Store
+	Projects() []ProjectInfo
 }
 
 // singleStoreProvider maps exactly one token to one store.
@@ -26,21 +41,33 @@ func (p *singleStoreProvider) Resolve(token string) *store.Store {
 	return nil
 }
 
-// multiStoreProvider maps multiple tokens to their respective stores.
-type multiStoreProvider struct {
-	stores map[string]*store.Store
+func (p *singleStoreProvider) Projects() []ProjectInfo {
+	return []ProjectInfo{{Name: "default", Store: p.store}}
 }
 
-// NewMultiStoreProvider returns a StoreProvider backed by a token-to-store map.
-func NewMultiStoreProvider(stores map[string]*store.Store) StoreProvider {
-	// Copy the map to prevent external mutation.
-	m := make(map[string]*store.Store, len(stores))
-	for k, v := range stores {
-		m[k] = v
+// multiStoreProvider maps multiple tokens to their respective stores.
+type multiStoreProvider struct {
+	stores   map[string]*store.Store
+	projects []ProjectInfo
+}
+
+// NewMultiStoreProvider returns a StoreProvider backed by a slice of ProviderEntry values.
+func NewMultiStoreProvider(entries []ProviderEntry) StoreProvider {
+	m := make(map[string]*store.Store, len(entries))
+	projects := make([]ProjectInfo, len(entries))
+	for i, e := range entries {
+		m[e.Token] = e.Store
+		projects[i] = ProjectInfo{Name: e.Name, Store: e.Store}
 	}
-	return &multiStoreProvider{stores: m}
+	return &multiStoreProvider{stores: m, projects: projects}
 }
 
 func (p *multiStoreProvider) Resolve(token string) *store.Store {
 	return p.stores[token]
+}
+
+func (p *multiStoreProvider) Projects() []ProjectInfo {
+	result := make([]ProjectInfo, len(p.projects))
+	copy(result, p.projects)
+	return result
 }
