@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
+	"github.com/yourorg/beads_server/internal/project"
 	"github.com/yourorg/beads_server/internal/server"
 	"github.com/yourorg/beads_server/internal/store"
 )
@@ -15,17 +16,28 @@ func newServeCmd() *cobra.Command {
 	var port int
 	var dataFile string
 	var token string
+	var projectsFile string
 
 	cmd := &cobra.Command{
 		Use:   "serve",
 		Short: "Start the beads HTTP server",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			// Resolve projects file: flag > env
+			if projectsFile == "" {
+				projectsFile = os.Getenv("BS_PROJECTS_FILE")
+			}
+
 			// Resolve token: flag > env
 			if token == "" {
 				token = os.Getenv("BS_TOKEN")
 			}
-			if token == "" {
-				return fmt.Errorf("token is required (use --token or BS_TOKEN env var)")
+
+			// Validate mutual exclusivity
+			if projectsFile != "" && token != "" {
+				return fmt.Errorf("--projects and --token are mutually exclusive")
+			}
+			if projectsFile == "" && token == "" {
+				return fmt.Errorf("either --projects or --token is required")
 			}
 
 			// Resolve port: flag > env > default
@@ -39,25 +51,46 @@ func newServeCmd() *cobra.Command {
 				}
 			}
 
-			// Resolve data-file: flag > env > default
-			if !cmd.Flags().Changed("data-file") {
-				if envFile := os.Getenv("BS_DATA_FILE"); envFile != "" {
-					dataFile = envFile
-				}
-			}
+			var provider server.StoreProvider
 
-			s, err := store.Load(dataFile)
-			if err != nil {
-				return fmt.Errorf("loading data file: %w", err)
+			if projectsFile != "" {
+				// Multi-project mode
+				entries, err := project.LoadProjectsFile(projectsFile)
+				if err != nil {
+					return err
+				}
+
+				stores := make(map[string]*store.Store, len(entries))
+				for _, e := range entries {
+					s, err := store.Load(e.DataFile)
+					if err != nil {
+						return fmt.Errorf("loading data file for project %q: %w", e.Name, err)
+					}
+					stores[e.Token] = s
+				}
+
+				provider = server.NewMultiStoreProvider(stores)
+			} else {
+				// Single-project mode
+				if !cmd.Flags().Changed("data-file") {
+					if envFile := os.Getenv("BS_DATA_FILE"); envFile != "" {
+						dataFile = envFile
+					}
+				}
+
+				s, err := store.Load(dataFile)
+				if err != nil {
+					return fmt.Errorf("loading data file: %w", err)
+				}
+
+				provider = server.NewSingleStoreProvider(token, s)
 			}
 
 			cfg := server.Config{
-				Port:     port,
-				DataFile: dataFile,
+				Port: port,
 			}
 
-			p := server.NewSingleStoreProvider(token, s)
-			srv, err := server.New(cfg, p)
+			srv, err := server.New(cfg, provider)
 			if err != nil {
 				return err
 			}
@@ -71,6 +104,7 @@ func newServeCmd() *cobra.Command {
 	cmd.Flags().IntVar(&port, "port", 9999, "port to listen on")
 	cmd.Flags().StringVar(&dataFile, "data-file", "beads.json", "path to data file")
 	cmd.Flags().StringVar(&token, "token", "", "bearer token for authentication")
+	cmd.Flags().StringVar(&projectsFile, "projects", "", "path to projects config file (multi-project mode)")
 
 	return cmd
 }
