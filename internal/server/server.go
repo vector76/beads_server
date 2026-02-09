@@ -45,7 +45,8 @@ func New(cfg Config, p StoreProvider) (*Server, error) {
 
 	srv.Router.Use(middleware.Recoverer)
 
-	// Health endpoint — no auth required
+	// Unauthenticated endpoints
+	srv.Router.Get("/", srv.handleDashboard)
 	srv.Router.Get("/api/v1/health", srv.handleHealth)
 
 	// All other API routes require auth
