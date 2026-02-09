@@ -31,7 +31,7 @@ type Config struct {
 // Server is the HTTP server for the beads API.
 type Server struct {
 	Router   *chi.Mux
-	Store    *store.Store // retained for backward compatibility; handlers will migrate to storeFor(r)
+	Store    *store.Store // exported for direct store access in tests
 	provider StoreProvider
 	config   Config
 	logger   *log.Logger
