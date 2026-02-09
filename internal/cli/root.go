@@ -11,26 +11,40 @@ func NewRootCmd() *cobra.Command {
 	root := &cobra.Command{
 		Use:     "bs",
 		Short:   "Beads server CLI",
+		Long:    "Beads server CLI — a tool for managing beads (issues/tasks).\n\nClient commands require BS_TOKEN and optionally BS_URL (default http://localhost:9999).",
 		Version: version,
 	}
 
-	root.AddCommand(newServeCmd())
-	root.AddCommand(newWhoamiCmd())
-	root.AddCommand(newAddCmd())
-	root.AddCommand(newShowCmd())
-	root.AddCommand(newEditCmd())
-	root.AddCommand(newStatusCmd("close", "closed"))
-	root.AddCommand(newStatusCmd("resolve", "resolved"))
-	root.AddCommand(newStatusCmd("reopen", "open"))
-	root.AddCommand(newDeleteCmd())
-	root.AddCommand(newListCmd())
-	root.AddCommand(newSearchCmd())
-	root.AddCommand(newClaimCmd())
-	root.AddCommand(newMineCmd())
-	root.AddCommand(newCommentCmd())
-	root.AddCommand(newLinkCmd())
-	root.AddCommand(newUnlinkCmd())
-	root.AddCommand(newDepsCmd())
+	root.AddGroup(
+		&cobra.Group{ID: "server", Title: "Server Commands:"},
+		&cobra.Group{ID: "client", Title: "Client Commands:"},
+	)
+
+	serveCmd := newServeCmd()
+	serveCmd.GroupID = "server"
+	root.AddCommand(serveCmd)
+
+	for _, cmd := range []*cobra.Command{
+		newWhoamiCmd(),
+		newAddCmd(),
+		newShowCmd(),
+		newEditCmd(),
+		newStatusCmd("close", "closed"),
+		newStatusCmd("resolve", "resolved"),
+		newStatusCmd("reopen", "open"),
+		newDeleteCmd(),
+		newListCmd(),
+		newSearchCmd(),
+		newClaimCmd(),
+		newMineCmd(),
+		newCommentCmd(),
+		newLinkCmd(),
+		newUnlinkCmd(),
+		newDepsCmd(),
+	} {
+		cmd.GroupID = "client"
+		root.AddCommand(cmd)
+	}
 
 	return root
 }
