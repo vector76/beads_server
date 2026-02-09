@@ -286,6 +286,97 @@ func TestMultiAgentConflict(t *testing.T) {
 	}
 }
 
+// TestMultiProjectIsolation tests that two projects with different tokens
+// have completely isolated data — beads created in one project are not
+// visible in the other.
+func TestMultiProjectIsolation(t *testing.T) {
+	dir := t.TempDir()
+
+	token1 := "tok-webapp"
+	token2 := "tok-backend"
+
+	s1, err := store.Load(filepath.Join(dir, "webapp.json"))
+	if err != nil {
+		t.Fatalf("store.Load s1: %v", err)
+	}
+	s2, err := store.Load(filepath.Join(dir, "backend.json"))
+	if err != nil {
+		t.Fatalf("store.Load s2: %v", err)
+	}
+
+	p := server.NewMultiStoreProvider(map[string]*store.Store{
+		token1: s1,
+		token2: s2,
+	})
+	srv, err := server.New(server.Config{Port: 0}, p)
+	if err != nil {
+		t.Fatalf("server.New: %v", err)
+	}
+	ts := httptest.NewServer(srv.Router)
+	t.Cleanup(ts.Close)
+
+	// Project 1: create a bead using token1
+	os.Setenv("BS_URL", ts.URL)
+	os.Setenv("BS_TOKEN", token1)
+	os.Setenv("BS_USER", "webapp-dev")
+	t.Cleanup(func() {
+		os.Unsetenv("BS_URL")
+		os.Unsetenv("BS_TOKEN")
+		os.Unsetenv("BS_USER")
+	})
+
+	out := run(t, "add", "Webapp bug")
+	webappBead := parseBead(t, out)
+	if webappBead.Title != "Webapp bug" {
+		t.Errorf("webapp bead title = %q, want %q", webappBead.Title, "Webapp bug")
+	}
+
+	// List with token1 — should see 1 bead
+	out = run(t, "list")
+	result := parseListResult(t, out)
+	if result.Total != 1 {
+		t.Fatalf("webapp list total = %d, want 1", result.Total)
+	}
+
+	// Switch to project 2
+	os.Setenv("BS_TOKEN", token2)
+	os.Setenv("BS_USER", "backend-dev")
+
+	// List with token2 — should see 0 beads (isolated)
+	out = run(t, "list")
+	result = parseListResult(t, out)
+	if result.Total != 0 {
+		t.Fatalf("backend list total = %d, want 0 (should be isolated)", result.Total)
+	}
+
+	// Create a bead in project 2
+	out = run(t, "add", "Backend task")
+	backendBead := parseBead(t, out)
+	if backendBead.Title != "Backend task" {
+		t.Errorf("backend bead title = %q, want %q", backendBead.Title, "Backend task")
+	}
+
+	// List with token2 — should see 1 bead
+	out = run(t, "list")
+	result = parseListResult(t, out)
+	if result.Total != 1 {
+		t.Fatalf("backend list total = %d, want 1", result.Total)
+	}
+
+	// Switch back to project 1 — should still see only 1 bead
+	os.Setenv("BS_TOKEN", token1)
+	os.Setenv("BS_USER", "webapp-dev")
+
+	out = run(t, "list")
+	result = parseListResult(t, out)
+	if result.Total != 1 {
+		t.Fatalf("webapp list total after backend add = %d, want 1", result.Total)
+	}
+	if result.Beads[0].Title != "Webapp bug" {
+		t.Errorf("webapp bead title = %q, want %q", result.Beads[0].Title, "Webapp bug")
+	}
+}
+
 // TestDependencyChain tests creating a dependency chain, resolving blockers,
 // and verifying the unblocked computation.
 func TestDependencyChain(t *testing.T) {
