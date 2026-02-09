@@ -26,12 +26,12 @@ func (s *Store) Link(beadID, blockedByID string) (model.Bead, error) {
 
 	b, ok := s.beads[beadID]
 	if !ok {
-		return model.Bead{}, fmt.Errorf("bead %s not found", beadID)
+		return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", beadID)}
 	}
 
 	target, ok := s.beads[blockedByID]
 	if !ok {
-		return model.Bead{}, fmt.Errorf("bead %s not found", blockedByID)
+		return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", blockedByID)}
 	}
 
 	// Reject deleted targets
@@ -103,7 +103,7 @@ func (s *Store) Unlink(beadID, blockedByID string) (model.Bead, error) {
 
 	b, ok := s.beads[beadID]
 	if !ok {
-		return model.Bead{}, fmt.Errorf("bead %s not found", beadID)
+		return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", beadID)}
 	}
 
 	idx := -1
@@ -144,7 +144,7 @@ func (s *Store) Deps(beadID string) (DepsResult, error) {
 
 	b, ok := s.beads[beadID]
 	if !ok {
-		return DepsResult{}, fmt.Errorf("bead %s not found", beadID)
+		return DepsResult{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", beadID)}
 	}
 
 	var active, resolved []model.Bead

@@ -104,7 +104,8 @@ func (s *Server) handleClaimBead(w http.ResponseWriter, r *http.Request) {
 	// Resolve the ID first
 	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var notFoundErr *store.NotFoundError
+		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}

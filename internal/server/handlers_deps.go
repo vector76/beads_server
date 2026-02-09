@@ -2,11 +2,12 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/yourorg/beads_server/internal/model"
+	"github.com/yourorg/beads_server/internal/store"
 )
 
 // commentRequest is the JSON body for adding a comment.
@@ -26,7 +27,8 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 
 	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var notFoundErr *store.NotFoundError
+		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -69,7 +71,8 @@ func (s *Server) handleLinkBead(w http.ResponseWriter, r *http.Request) {
 
 	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var notFoundErr *store.NotFoundError
+		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -91,7 +94,8 @@ func (s *Server) handleLinkBead(w http.ResponseWriter, r *http.Request) {
 	// Resolve the target ID as well
 	target, err := s.storeFor(r).Resolve(req.BlockedBy)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var notFoundErr *store.NotFoundError
+		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -115,7 +119,8 @@ func (s *Server) handleUnlinkBead(w http.ResponseWriter, r *http.Request) {
 
 	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var notFoundErr *store.NotFoundError
+		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -126,7 +131,8 @@ func (s *Server) handleUnlinkBead(w http.ResponseWriter, r *http.Request) {
 	// Resolve the other ID as well
 	other, err := s.storeFor(r).Resolve(otherID)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var notFoundErr *store.NotFoundError
+		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -149,7 +155,8 @@ func (s *Server) handleGetDeps(w http.ResponseWriter, r *http.Request) {
 
 	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var notFoundErr *store.NotFoundError
+		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}

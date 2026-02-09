@@ -116,7 +116,7 @@ func (s *Store) Get(id string) (model.Bead, error) {
 
 	b, ok := s.beads[id]
 	if !ok {
-		return model.Bead{}, fmt.Errorf("bead %s not found", id)
+		return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", id)}
 	}
 	return b, nil
 }
@@ -148,7 +148,7 @@ func (s *Store) Resolve(prefix string) (model.Bead, error) {
 
 	switch len(matches) {
 	case 0:
-		return model.Bead{}, fmt.Errorf("bead %s not found", prefix)
+		return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", prefix)}
 	case 1:
 		return matches[0], nil
 	default:
@@ -180,7 +180,7 @@ func (s *Store) Update(id string, fields UpdateFields) (model.Bead, error) {
 
 	b, ok := s.beads[id]
 	if !ok {
-		return model.Bead{}, fmt.Errorf("bead %s not found", id)
+		return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", id)}
 	}
 
 	if fields.Title != nil {

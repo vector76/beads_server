@@ -2,8 +2,8 @@ package server
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/yourorg/beads_server/internal/model"
@@ -114,7 +114,8 @@ func (s *Server) handleGetBead(w http.ResponseWriter, r *http.Request) {
 
 	b, err := s.storeFor(r).Resolve(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var notFoundErr *store.NotFoundError
+		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -132,7 +133,8 @@ func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 	// Resolve the ID first
 	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var notFoundErr *store.NotFoundError
+		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}
@@ -218,7 +220,8 @@ func (s *Server) handleDeleteBead(w http.ResponseWriter, r *http.Request) {
 	// Resolve the ID first
 	existing, err := s.storeFor(r).Resolve(id)
 	if err != nil {
-		if strings.Contains(err.Error(), "not found") {
+		var notFoundErr *store.NotFoundError
+		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
 			return
 		}

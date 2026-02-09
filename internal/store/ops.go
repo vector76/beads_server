@@ -9,6 +9,15 @@ import (
 	"github.com/yourorg/beads_server/internal/model"
 )
 
+// NotFoundError represents a 404 Not Found error for bead lookups.
+type NotFoundError struct {
+	Message string
+}
+
+func (e *NotFoundError) Error() string {
+	return e.Message
+}
+
 // ConflictError represents a 409 Conflict error for claim operations.
 type ConflictError struct {
 	Message string
@@ -93,7 +102,7 @@ func (s *Store) AddComment(beadID string, comment model.Comment) (model.Bead, er
 
 	b, ok := s.beads[beadID]
 	if !ok {
-		return model.Bead{}, fmt.Errorf("bead %s not found", beadID)
+		return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", beadID)}
 	}
 
 	comment.CreatedAt = time.Now().UTC()
@@ -120,7 +129,7 @@ func (s *Store) Claim(beadID, user string) (model.Bead, error) {
 
 	b, ok := s.beads[beadID]
 	if !ok {
-		return model.Bead{}, fmt.Errorf("bead %s not found", beadID)
+		return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", beadID)}
 	}
 
 	// Check terminal states
