@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -31,7 +32,7 @@ func crudServer(t *testing.T) *Server {
 		t.Fatalf("Load: %v", err)
 	}
 	p := NewSingleStoreProvider(testToken, s)
-	srv, err := New(Config{Port: 0, DataFile: filepath.Join(dir, "beads.json")}, p)
+	srv, err := New(Config{Port: 0, DataFile: filepath.Join(dir, "beads.json"), LogOutput: io.Discard}, p)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}

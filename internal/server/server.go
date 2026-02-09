@@ -4,8 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
+	"log"
 	"net/http"
+	"os"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -19,8 +23,9 @@ const storeContextKey contextKey = iota
 
 // Config holds the server configuration.
 type Config struct {
-	Port     int
-	DataFile string
+	Port      int
+	DataFile  string
+	LogOutput io.Writer // destination for request logs; nil defaults to os.Stdout
 }
 
 // Server is the HTTP server for the beads API.
@@ -29,6 +34,7 @@ type Server struct {
 	Store    *store.Store // retained for backward compatibility; handlers will migrate to storeFor(r)
 	provider StoreProvider
 	config   Config
+	logger   *log.Logger
 }
 
 // New creates a new Server with the given config and provider.
@@ -37,13 +43,20 @@ func New(cfg Config, p StoreProvider) (*Server, error) {
 		return nil, fmt.Errorf("store provider must not be nil")
 	}
 
+	logOut := cfg.LogOutput
+	if logOut == nil {
+		logOut = os.Stdout
+	}
+
 	srv := &Server{
 		Router:   chi.NewRouter(),
 		provider: p,
 		config:   cfg,
+		logger:   log.New(logOut, "", log.LstdFlags),
 	}
 
 	srv.Router.Use(middleware.Recoverer)
+	srv.Router.Use(srv.requestLogger)
 
 	// Unauthenticated endpoints
 	srv.Router.Get("/", srv.handleDashboard)
@@ -109,4 +122,36 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// requestLogger logs one line per request: method, path, status, and duration.
+func (s *Server) requestLogger(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+		ww := &responseWriter{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(ww, r)
+		s.logger.Printf("%s %s %d %s", r.Method, r.URL.Path, ww.status, time.Since(start).Round(time.Millisecond))
+	})
+}
+
+// responseWriter wraps http.ResponseWriter to capture the status code.
+type responseWriter struct {
+	http.ResponseWriter
+	status      int
+	wroteHeader bool
+}
+
+func (rw *responseWriter) WriteHeader(code int) {
+	if !rw.wroteHeader {
+		rw.status = code
+		rw.wroteHeader = true
+	}
+	rw.ResponseWriter.WriteHeader(code)
+}
+
+func (rw *responseWriter) Write(b []byte) (int, error) {
+	if !rw.wroteHeader {
+		rw.wroteHeader = true
+	}
+	return rw.ResponseWriter.Write(b)
 }

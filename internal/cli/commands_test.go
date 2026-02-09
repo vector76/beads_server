@@ -3,6 +3,7 @@ package cli
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ func startTestServer(t *testing.T) *httptest.Server {
 		t.Fatalf("store.Load: %v", err)
 	}
 	p := server.NewSingleStoreProvider(testToken, s)
-	srv, err := server.New(server.Config{Port: 0, DataFile: filepath.Join(dir, "beads.json")}, p)
+	srv, err := server.New(server.Config{Port: 0, DataFile: filepath.Join(dir, "beads.json"), LogOutput: io.Discard}, p)
 	if err != nil {
 		t.Fatalf("server.New: %v", err)
 	}

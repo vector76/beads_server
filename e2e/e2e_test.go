@@ -3,6 +3,7 @@ package e2e
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
@@ -24,7 +25,7 @@ func startServer(t *testing.T) *httptest.Server {
 		t.Fatalf("store.Load: %v", err)
 	}
 	p := server.NewSingleStoreProvider(testToken, s)
-	srv, err := server.New(server.Config{Port: 0, DataFile: filepath.Join(dir, "beads.json")}, p)
+	srv, err := server.New(server.Config{Port: 0, DataFile: filepath.Join(dir, "beads.json"), LogOutput: io.Discard}, p)
 	if err != nil {
 		t.Fatalf("server.New: %v", err)
 	}
@@ -308,7 +309,7 @@ func TestMultiProjectIsolation(t *testing.T) {
 		{Name: "webapp", Token: token1, Store: s1},
 		{Name: "backend", Token: token2, Store: s2},
 	})
-	srv, err := server.New(server.Config{Port: 0}, p)
+	srv, err := server.New(server.Config{Port: 0, LogOutput: io.Discard}, p)
 	if err != nil {
 		t.Fatalf("server.New: %v", err)
 	}

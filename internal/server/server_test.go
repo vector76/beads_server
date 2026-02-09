@@ -3,6 +3,7 @@ package server
 import (
 	"bytes"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -23,7 +24,7 @@ func testServer(t *testing.T) *Server {
 	}
 
 	p := NewSingleStoreProvider(testToken, s)
-	srv, err := New(Config{Port: 0, DataFile: filepath.Join(dir, "beads.json")}, p)
+	srv, err := New(Config{Port: 0, DataFile: filepath.Join(dir, "beads.json"), LogOutput: io.Discard}, p)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
@@ -133,7 +134,7 @@ func TestAuthInvalidFormat(t *testing.T) {
 }
 
 func TestNewServerRequiresProvider(t *testing.T) {
-	_, err := New(Config{Port: 8080, DataFile: "beads.json"}, nil)
+	_, err := New(Config{Port: 8080, DataFile: "beads.json", LogOutput: io.Discard}, nil)
 	if err == nil {
 		t.Fatal("expected error when provider is nil")
 	}
@@ -160,7 +161,7 @@ func TestMultiProjectAuth(t *testing.T) {
 		{Name: "project2", Token: token2, Store: s2},
 	})
 
-	srv, err := New(Config{Port: 0}, p)
+	srv, err := New(Config{Port: 0, LogOutput: io.Discard}, p)
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
