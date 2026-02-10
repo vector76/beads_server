@@ -627,6 +627,264 @@ func TestEpicQueryPaths(t *testing.T) {
 	_ = child2
 }
 
+// TestEpicClean exercises epic-aware cleaning through the CLI: unit-based
+// cleaning removes a closed epic with all its children as a unit, partial
+// epics are never cleaned, and the age threshold uses max updated_at across
+// the unit.
+func TestEpicClean(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "clean-agent")
+
+	// --- Setup: create two epics ---
+
+	// Epic A: fully closed (both children closed)
+	out := run(t, "add", "Completed Epic")
+	epicA := parseBead(t, out)
+	out = run(t, "add", "Done task 1", "--parent", epicA.ID)
+	childA1 := parseBead(t, out)
+	out = run(t, "add", "Done task 2", "--parent", epicA.ID)
+	childA2 := parseBead(t, out)
+	run(t, "close", childA1.ID)
+	run(t, "close", childA2.ID)
+
+	// Verify epic A is closed (derived)
+	out = run(t, "show", epicA.ID)
+	var detail map[string]any
+	json.Unmarshal([]byte(out), &detail)
+	if detail["status"] != "closed" {
+		t.Fatalf("epicA: expected status closed, got %v", detail["status"])
+	}
+
+	// Epic B: partially closed (one child open, one closed)
+	out = run(t, "add", "In Progress Epic")
+	epicB := parseBead(t, out)
+	out = run(t, "add", "Open task", "--parent", epicB.ID)
+	_ = parseBead(t, out) // childB1 - stays open
+	out = run(t, "add", "Closed task", "--parent", epicB.ID)
+	childB2 := parseBead(t, out)
+	run(t, "close", childB2.ID)
+
+	// Verify epic B is in_progress (derived: mixed children)
+	out = run(t, "show", epicB.ID)
+	json.Unmarshal([]byte(out), &detail)
+	if detail["status"] != "in_progress" {
+		t.Fatalf("epicB: expected status in_progress, got %v", detail["status"])
+	}
+
+	// Also create a standalone closed bead
+	out = run(t, "add", "Standalone closed")
+	standalone := parseBead(t, out)
+	run(t, "close", standalone.ID)
+
+	// --- Verify totals before clean ---
+	out = run(t, "list", "--all")
+	allResult := parseListResult(t, out)
+	// Top-level: epicA + epicB + standalone = 3
+	if allResult.Total != 3 {
+		t.Fatalf("before clean: expected 3 top-level, got %d", allResult.Total)
+	}
+
+	// --- Clean with --days 0 ---
+	out = run(t, "clean", "--days", "0")
+	var resp struct {
+		Removed int `json:"removed"`
+	}
+	json.Unmarshal([]byte(out), &resp)
+
+	// Expected: epicA (1) + its 2 children (2) + standalone (1) = 4
+	// Epic B and its children should NOT be cleaned (partial, in_progress)
+	if resp.Removed != 4 {
+		t.Fatalf("expected 4 removed (epicA unit + standalone), got %d", resp.Removed)
+	}
+
+	// --- Verify what remains ---
+	out = run(t, "list", "--all")
+	allResult = parseListResult(t, out)
+	// Only epicB should remain
+	if allResult.Total != 1 {
+		t.Fatalf("after clean: expected 1 top-level (epicB), got %d", allResult.Total)
+	}
+	if allResult.Beads[0].ID != epicB.ID {
+		t.Errorf("remaining bead should be epicB %s, got %s", epicB.ID, allResult.Beads[0].ID)
+	}
+
+	// Verify epicA is gone (hard deleted)
+	err := runExpectErr(t, "show", epicA.ID)
+	if err == nil {
+		t.Error("expected error showing cleaned epicA")
+	}
+
+	// Verify epicB's children are intact
+	out = run(t, "show", epicB.ID)
+	json.Unmarshal([]byte(out), &detail)
+	children := detail["children"].([]any)
+	// 1 child shown (deleted excluded from show children, but the closed child
+	// is still there since it wasn't cleaned — it's part of an in-progress epic)
+	if len(children) != 2 {
+		t.Errorf("epicB should still have 2 children, got %d", len(children))
+	}
+}
+
+// TestEpicFullLifecycleWithClean exercises a comprehensive epic lifecycle:
+// create, add children, work through states querying at each stage, and clean.
+func TestEpicFullLifecycleWithClean(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "lifecycle-agent")
+
+	// === Phase 1: Creation ===
+	out := run(t, "add", "API Redesign", "--type", "feature", "--priority", "high",
+		"--description", "Redesign the REST API with versioning")
+	epic := parseBead(t, out)
+
+	out = run(t, "add", "Define new endpoints", "--parent", epic.ID)
+	child1 := parseBead(t, out)
+	out = run(t, "add", "Update client SDK", "--parent", epic.ID)
+	child2 := parseBead(t, out)
+	out = run(t, "add", "Write migration guide", "--parent", epic.ID)
+	child3 := parseBead(t, out)
+
+	// Query: show epic has 3 children, all open
+	out = run(t, "show", epic.ID)
+	var detail map[string]any
+	json.Unmarshal([]byte(out), &detail)
+	if detail["status"] != "open" {
+		t.Errorf("phase 1: expected epic status open, got %v", detail["status"])
+	}
+	progress := detail["progress"].(map[string]any)
+	if progress["total"] != float64(3) {
+		t.Errorf("phase 1: expected 3 children, got %v", progress["total"])
+	}
+	if progress["open"] != float64(3) {
+		t.Errorf("phase 1: expected 3 open, got %v", progress["open"])
+	}
+
+	// Query: list shows 1 top-level item (the epic)
+	out = run(t, "list")
+	var listMap map[string]any
+	json.Unmarshal([]byte(out), &listMap)
+	if int(listMap["total"].(float64)) != 1 {
+		t.Errorf("phase 1: expected 1 top-level, got %v", listMap["total"])
+	}
+
+	// Query: list --ready shows 3 children
+	out = run(t, "list", "--ready")
+	readyResult := parseListResult(t, out)
+	if readyResult.Total != 3 {
+		t.Errorf("phase 1: expected 3 ready children, got %d", readyResult.Total)
+	}
+
+	// === Phase 2: Work in progress ===
+	run(t, "claim", child1.ID)
+
+	// Query: mine shows 1 item with parent context
+	out = run(t, "mine")
+	mineResult := parseListResult(t, out)
+	if mineResult.Total != 1 {
+		t.Fatalf("phase 2: expected 1 mine result, got %d", mineResult.Total)
+	}
+	if mineResult.Beads[0].ParentTitle != "API Redesign" {
+		t.Errorf("phase 2: expected parent_title 'API Redesign', got %q", mineResult.Beads[0].ParentTitle)
+	}
+
+	// Close child1
+	run(t, "close", child1.ID)
+
+	// Query: epic should be in_progress (mixed: 1 closed, 2 open)
+	out = run(t, "show", epic.ID)
+	json.Unmarshal([]byte(out), &detail)
+	if detail["status"] != "in_progress" {
+		t.Errorf("phase 2: expected epic status in_progress, got %v", detail["status"])
+	}
+	progress = detail["progress"].(map[string]any)
+	if progress["closed"] != float64(1) {
+		t.Errorf("phase 2: expected 1 closed, got %v", progress["closed"])
+	}
+
+	// Query: list --ready shows 2 remaining open children
+	out = run(t, "list", "--ready")
+	readyResult = parseListResult(t, out)
+	if readyResult.Total != 2 {
+		t.Errorf("phase 2: expected 2 ready children, got %d", readyResult.Total)
+	}
+
+	// === Phase 3: Close remaining children ===
+	run(t, "claim", child2.ID)
+	run(t, "close", child2.ID)
+	run(t, "claim", child3.ID)
+	run(t, "close", child3.ID)
+
+	// Query: epic should be closed (all children terminal)
+	out = run(t, "show", epic.ID)
+	json.Unmarshal([]byte(out), &detail)
+	if detail["status"] != "closed" {
+		t.Errorf("phase 3: expected epic status closed, got %v", detail["status"])
+	}
+	progress = detail["progress"].(map[string]any)
+	if progress["closed"] != float64(3) {
+		t.Errorf("phase 3: expected 3 closed, got %v", progress["closed"])
+	}
+
+	// Query: list --ready shows 0 (all done)
+	out = run(t, "list", "--ready")
+	readyResult = parseListResult(t, out)
+	if readyResult.Total != 0 {
+		t.Errorf("phase 3: expected 0 ready, got %d", readyResult.Total)
+	}
+
+	// Query: default list shows 0 (epic is closed, default excludes closed)
+	out = run(t, "list")
+	json.Unmarshal([]byte(out), &listMap)
+	if int(listMap["total"].(float64)) != 0 {
+		t.Errorf("phase 3: expected 0 in default list (closed excluded), got %v", listMap["total"])
+	}
+
+	// Query: list --all shows 1 (the closed epic, children nested)
+	out = run(t, "list", "--all")
+	allResult := parseListResult(t, out)
+	if allResult.Total != 1 {
+		t.Errorf("phase 3: expected 1 in --all list, got %d", allResult.Total)
+	}
+
+	// Query: search still finds it
+	out = run(t, "search", "API Redesign")
+	searchResult := parseListResult(t, out)
+	if searchResult.Total != 1 {
+		t.Errorf("phase 3: search should find closed epic, got %d", searchResult.Total)
+	}
+	if !searchResult.Beads[0].IsEpic {
+		t.Error("phase 3: search result should have is_epic=true")
+	}
+
+	// === Phase 4: Clean ===
+	out = run(t, "clean", "--days", "0")
+	var resp struct {
+		Removed int `json:"removed"`
+	}
+	json.Unmarshal([]byte(out), &resp)
+
+	// Epic + 3 children = 4
+	if resp.Removed != 4 {
+		t.Fatalf("phase 4: expected 4 removed (epic + 3 children), got %d", resp.Removed)
+	}
+
+	// Query: everything is gone
+	out = run(t, "list", "--all")
+	allResult = parseListResult(t, out)
+	if allResult.Total != 0 {
+		t.Errorf("phase 4: expected 0 after clean, got %d", allResult.Total)
+	}
+
+	// Verify hard deletion
+	err := runExpectErr(t, "show", epic.ID)
+	if err == nil {
+		t.Error("phase 4: expected error showing cleaned epic")
+	}
+	err = runExpectErr(t, "show", child1.ID)
+	if err == nil {
+		t.Error("phase 4: expected error showing cleaned child")
+	}
+}
+
 // TestDependencyChain tests creating a dependency chain, resolving blockers,
 // and verifying the unblocked computation.
 func TestDependencyChain(t *testing.T) {
