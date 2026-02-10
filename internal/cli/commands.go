@@ -11,6 +11,7 @@ func newAddCmd() *cobra.Command {
 	var priority string
 	var description string
 	var tags []string
+	var parentID string
 
 	cmd := &cobra.Command{
 		Use:   "add <title>",
@@ -37,6 +38,9 @@ func newAddCmd() *cobra.Command {
 			if len(tags) > 0 {
 				body["tags"] = tags
 			}
+			if parentID != "" {
+				body["parent_id"] = parentID
+			}
 
 			data, err := c.Do("POST", "/api/v1/beads", body)
 			if err != nil {
@@ -52,10 +56,11 @@ func newAddCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&beadType, "type", "", "bead type (bug, feature, task, epic, chore)")
+	cmd.Flags().StringVar(&beadType, "type", "", "bead type (bug, feature, task, chore)")
 	cmd.Flags().StringVar(&priority, "priority", "", "priority (critical, high, medium, low, none)")
 	cmd.Flags().StringVar(&description, "description", "", "bead description")
 	cmd.Flags().StringSliceVar(&tags, "tags", nil, "comma-separated tags")
+	cmd.Flags().StringVar(&parentID, "parent", "", "parent epic ID (creates a child bead)")
 
 	return cmd
 }
@@ -153,7 +158,7 @@ func newEditCmd() *cobra.Command {
 	cmd.Flags().StringVar(&title, "title", "", "bead title")
 	cmd.Flags().StringVar(&status, "status", "", "status (open, in_progress, closed, deleted)")
 	cmd.Flags().StringVar(&priority, "priority", "", "priority (critical, high, medium, low, none)")
-	cmd.Flags().StringVar(&beadType, "type", "", "bead type (bug, feature, task, epic, chore)")
+	cmd.Flags().StringVar(&beadType, "type", "", "bead type (bug, feature, task, chore)")
 	cmd.Flags().StringVar(&description, "description", "", "bead description")
 	cmd.Flags().StringVar(&assignee, "assignee", "", "assignee")
 	cmd.Flags().StringSliceVar(&addTags, "add-tag", nil, "add a tag")
@@ -237,6 +242,57 @@ func newCleanCmd() *cobra.Command {
 
 	cmd.Flags().Float64Var(&days, "days", 5, "remove beads last updated more than N days ago; accepts decimals (0 = all)")
 	cmd.Flags().Float64Var(&hours, "hours", 0, "remove beads last updated more than N hours ago; accepts decimals (0 = all)")
+
+	return cmd
+}
+
+func newMoveCmd() *cobra.Command {
+	var into string
+	var out bool
+
+	cmd := &cobra.Command{
+		Use:   "move <id>",
+		Short: "Move a bead into or out of an epic",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			intoChanged := cmd.Flags().Changed("into")
+			outChanged := cmd.Flags().Changed("out")
+
+			if !intoChanged && !outChanged {
+				return fmt.Errorf("specify --into <epic-id> or --out")
+			}
+			if intoChanged && outChanged {
+				return fmt.Errorf("cannot specify both --into and --out")
+			}
+
+			c, err := NewClientFromEnv()
+			if err != nil {
+				return err
+			}
+
+			body := map[string]any{}
+			if intoChanged {
+				body["parent_id"] = into
+			} else {
+				body["parent_id"] = ""
+			}
+
+			data, err := c.Do("PATCH", "/api/v1/beads/"+args[0], body)
+			if err != nil {
+				return err
+			}
+
+			pretty, err := prettyJSON(data)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), pretty)
+			return nil
+		},
+	}
+
+	cmd.Flags().StringVar(&into, "into", "", "target epic ID to move the bead into")
+	cmd.Flags().BoolVar(&out, "out", false, "detach the bead from its parent epic")
 
 	return cmd
 }

@@ -2,7 +2,6 @@ package store
 
 import (
 	"fmt"
-	"sort"
 	"strings"
 	"time"
 
@@ -55,14 +54,7 @@ func (s *Store) Search(query string, page, perPage int) ListResult {
 	}
 
 	// Sort same as list: priority then created_at descending
-	sort.Slice(matched, func(i, j int) bool {
-		ri := matched[i].Priority.Rank()
-		rj := matched[j].Priority.Rank()
-		if ri != rj {
-			return ri < rj
-		}
-		return matched[j].CreatedAt.Before(matched[i].CreatedAt)
-	})
+	sortBeads(matched)
 
 	// Pagination
 	total := len(matched)
@@ -83,7 +75,17 @@ func (s *Store) Search(query string, page, perPage int) ListResult {
 	pageSlice := matched[start:end]
 	summaries := make([]BeadSummary, len(pageSlice))
 	for i, b := range pageSlice {
-		summaries[i] = summaryFromBead(b)
+		sum := summaryFromBead(b)
+		if b.ParentID != "" {
+			sum.ParentID = b.ParentID
+			if parent, ok := s.beads[b.ParentID]; ok {
+				sum.ParentTitle = parent.Title
+			}
+		}
+		if s.hasChildren(b.ID) {
+			sum.IsEpic = true
+		}
+		summaries[i] = sum
 	}
 
 	return ListResult{
@@ -121,25 +123,78 @@ func (s *Store) AddComment(beadID string, comment model.Comment) (model.Bead, er
 }
 
 // Clean permanently removes beads with status closed or deleted whose updated_at
-// is older than the given cutoff time. Returns the number of beads removed.
+// is older than the given cutoff time. Epics are treated as units: a fully closed
+// epic is cleaned with all its children when the most recent updated_at across
+// the unit is before cutoff. In-progress epics retain all children. Standalone
+// closed beads (no parent, not an epic) are cleaned individually. Children of
+// in-progress epics are never cleaned individually.
 func (s *Store) Clean(cutoff time.Time) (int, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	var toRemove []string
+	removeSet := make(map[string]bool)
+
 	for id, b := range s.beads {
-		if (b.Status == model.StatusClosed || b.Status == model.StatusDeleted) && b.UpdatedAt.Before(cutoff) {
-			toRemove = append(toRemove, id)
+		// Skip beads that aren't in a terminal state.
+		if b.Status != model.StatusClosed && b.Status != model.StatusDeleted {
+			continue
+		}
+		// Skip children — they are handled as part of their parent epic unit.
+		// Exception: orphaned children (parent no longer exists) are cleaned individually.
+		if b.ParentID != "" {
+			if _, parentExists := s.beads[b.ParentID]; parentExists {
+				continue
+			}
+			// Orphaned child: parent was hard-deleted. Clean individually.
+			if b.UpdatedAt.Before(cutoff) {
+				removeSet[id] = true
+			}
+			continue
+		}
+
+		children := s.childrenOf(id)
+		if len(children) == 0 {
+			// Standalone bead: clean if old enough.
+			if b.UpdatedAt.Before(cutoff) {
+				removeSet[id] = true
+			}
+			continue
+		}
+
+		// Epic: only clean if fully terminal (all children closed/deleted).
+		allTerminal := true
+		for _, c := range children {
+			if c.Status != model.StatusClosed && c.Status != model.StatusDeleted {
+				allTerminal = false
+				break
+			}
+		}
+		if !allTerminal {
+			continue
+		}
+
+		// Check the most recent updated_at across the unit.
+		latest := b.UpdatedAt
+		for _, c := range children {
+			if c.UpdatedAt.After(latest) {
+				latest = c.UpdatedAt
+			}
+		}
+		if latest.Before(cutoff) {
+			removeSet[id] = true
+			for _, c := range children {
+				removeSet[c.ID] = true
+			}
 		}
 	}
 
-	if len(toRemove) == 0 {
+	if len(removeSet) == 0 {
 		return 0, nil
 	}
 
 	// Backup for rollback
-	removed := make(map[string]model.Bead, len(toRemove))
-	for _, id := range toRemove {
+	removed := make(map[string]model.Bead, len(removeSet))
+	for id := range removeSet {
 		removed[id] = s.beads[id]
 		delete(s.beads, id)
 	}
@@ -152,7 +207,7 @@ func (s *Store) Clean(cutoff time.Time) (int, error) {
 		return 0, err
 	}
 
-	return len(toRemove), nil
+	return len(removeSet), nil
 }
 
 // Claim atomically sets a bead's status to in_progress and assignee to the given user.

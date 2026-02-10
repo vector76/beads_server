@@ -68,8 +68,9 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 // handleLinkBead handles POST /api/v1/beads/:id/link.
 func (s *Server) handleLinkBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	st := s.storeFor(r)
 
-	existing, err := s.storeFor(r).Resolve(id)
+	existing, err := st.Resolve(id)
 	if err != nil {
 		var notFoundErr *store.NotFoundError
 		if errors.As(err, &notFoundErr) {
@@ -92,7 +93,7 @@ func (s *Server) handleLinkBead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Resolve the target ID as well
-	target, err := s.storeFor(r).Resolve(req.BlockedBy)
+	target, err := st.Resolve(req.BlockedBy)
 	if err != nil {
 		var notFoundErr *store.NotFoundError
 		if errors.As(err, &notFoundErr) {
@@ -103,7 +104,18 @@ func (s *Server) handleLinkBead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := s.storeFor(r).Link(existing.ID, target.ID)
+	// Reject parent-child blocking.
+	if err := st.ValidateLinkParentChild(existing.ID, target.ID); err != nil {
+		var conflictErr *store.ConflictError
+		if errors.As(err, &conflictErr) {
+			jsonError(w, conflictErr.Message, http.StatusConflict)
+			return
+		}
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	updated, err := st.Link(existing.ID, target.ID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return

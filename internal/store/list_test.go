@@ -37,7 +37,7 @@ func setupListStore(t *testing.T) *Store {
 		newBeadWithFields("bd-open0002", "Open medium task", model.StatusOpen, model.PriorityMedium, model.TypeTask, "agent-2", []string{"backend"}, nil, now.Add(-4*time.Minute)),
 		newBeadWithFields("bd-open0003", "Open critical feature", model.StatusOpen, model.PriorityCritical, model.TypeFeature, "", nil, nil, now.Add(-3*time.Minute)),
 		newBeadWithFields("bd-prog0001", "In progress low chore", model.StatusInProgress, model.PriorityLow, model.TypeChore, "agent-1", []string{"cleanup"}, nil, now.Add(-2*time.Minute)),
-		newBeadWithFields("bd-clos0001", "Closed none epic", model.StatusClosed, model.PriorityNone, model.TypeEpic, "agent-3", nil, nil, now.Add(-1*time.Minute)),
+		newBeadWithFields("bd-clos0001", "Closed none task", model.StatusClosed, model.PriorityNone, model.TypeTask, "agent-3", nil, nil, now.Add(-1*time.Minute)),
 		newBeadWithFields("bd-dele0001", "Deleted task", model.StatusDeleted, model.PriorityMedium, model.TypeTask, "", nil, nil, now),
 	}
 

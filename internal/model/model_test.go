@@ -218,7 +218,7 @@ func TestPriorityValid(t *testing.T) {
 }
 
 func TestBeadTypeValid(t *testing.T) {
-	valid := []BeadType{TypeBug, TypeFeature, TypeTask, TypeEpic, TypeChore}
+	valid := []BeadType{TypeBug, TypeFeature, TypeTask, TypeChore}
 	for _, bt := range valid {
 		if !bt.Valid() {
 			t.Errorf("expected type %q to be valid", bt)
@@ -227,6 +227,9 @@ func TestBeadTypeValid(t *testing.T) {
 
 	if BeadType("bogus").Valid() {
 		t.Error("expected 'bogus' type to be invalid")
+	}
+	if BeadType("epic").Valid() {
+		t.Error("expected 'epic' type to be invalid (removed)")
 	}
 }
 

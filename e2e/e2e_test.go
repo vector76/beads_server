@@ -425,6 +425,128 @@ func TestMultiProjectIsolation(t *testing.T) {
 	}
 }
 
+// TestEpicLifecycle exercises the full epic lifecycle: create parent, add children,
+// close children, verify derived status, move in/out, and delete.
+func TestEpicLifecycle(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "epic-agent")
+
+	// 1. Create parent bead (will become an epic)
+	out := run(t, "add", "Auth rewrite", "--type", "feature", "--priority", "high")
+	epic := parseBead(t, out)
+
+	// 2. Create children using --parent
+	out = run(t, "add", "Design token schema", "--parent", epic.ID)
+	child1 := parseBead(t, out)
+	if child1.ParentID != epic.ID {
+		t.Fatalf("child1 parent_id = %q, want %q", child1.ParentID, epic.ID)
+	}
+
+	out = run(t, "add", "Write middleware", "--parent", epic.ID)
+	child2 := parseBead(t, out)
+
+	// 3. Show epic — should have progress and children
+	out = run(t, "show", epic.ID)
+	var epicDetail map[string]any
+	json.Unmarshal([]byte(out), &epicDetail)
+	if epicDetail["is_epic"] != true {
+		t.Error("expected is_epic=true")
+	}
+	progress := epicDetail["progress"].(map[string]any)
+	if progress["total"] != float64(2) {
+		t.Errorf("expected progress.total=2, got %v", progress["total"])
+	}
+
+	// 4. Show child — should have parent context
+	out = run(t, "show", child1.ID)
+	var childDetail map[string]any
+	json.Unmarshal([]byte(out), &childDetail)
+	if childDetail["parent_title"] != "Auth rewrite" {
+		t.Errorf("expected parent_title 'Auth rewrite', got %v", childDetail["parent_title"])
+	}
+
+	// 5. List — children should be nested under epic
+	out = run(t, "list")
+	var listResult map[string]any
+	json.Unmarshal([]byte(out), &listResult)
+	total := int(listResult["total"].(float64))
+	if total != 1 {
+		t.Fatalf("expected 1 top-level (epic only), got %d", total)
+	}
+
+	// 6. List --ready — should show children (not epic)
+	out = run(t, "list", "--ready")
+	readyResult := parseListResult(t, out)
+	if readyResult.Total != 2 {
+		t.Fatalf("expected 2 ready children, got %d", readyResult.Total)
+	}
+
+	// 7. Claim on epic should fail
+	err := runExpectErr(t, "claim", epic.ID)
+	if err == nil {
+		t.Fatal("expected error claiming epic")
+	}
+
+	// 8. Close on epic should fail
+	err = runExpectErr(t, "close", epic.ID)
+	if err == nil {
+		t.Fatal("expected error closing epic")
+	}
+
+	// 9. Close child1 — epic should become in_progress
+	run(t, "close", child1.ID)
+	out = run(t, "show", epic.ID)
+	json.Unmarshal([]byte(out), &epicDetail)
+	if epicDetail["status"] != "in_progress" {
+		t.Errorf("expected epic status in_progress after closing one child, got %v", epicDetail["status"])
+	}
+
+	// 10. Close child2 — epic should become closed
+	run(t, "close", child2.ID)
+	out = run(t, "show", epic.ID)
+	json.Unmarshal([]byte(out), &epicDetail)
+	if epicDetail["status"] != "closed" {
+		t.Errorf("expected epic status closed after closing all children, got %v", epicDetail["status"])
+	}
+
+	// 11. Move a standalone bead into the epic
+	out = run(t, "add", "Late addition")
+	lateBead := parseBead(t, out)
+	out = run(t, "move", lateBead.ID, "--into", epic.ID)
+	moved := parseBead(t, out)
+	if moved.ParentID != epic.ID {
+		t.Errorf("expected parent_id %s after move, got %s", epic.ID, moved.ParentID)
+	}
+
+	// Epic should reopen (new open child)
+	out = run(t, "show", epic.ID)
+	json.Unmarshal([]byte(out), &epicDetail)
+	if epicDetail["status"] != "in_progress" {
+		t.Errorf("expected epic status in_progress after adding child, got %v", epicDetail["status"])
+	}
+
+	// 12. Move out
+	out = run(t, "move", lateBead.ID, "--out")
+	movedOut := parseBead(t, out)
+	if movedOut.ParentID != "" {
+		t.Errorf("expected empty parent_id after move out, got %s", movedOut.ParentID)
+	}
+
+	// Epic should be closed again (only terminal children remain)
+	out = run(t, "show", epic.ID)
+	json.Unmarshal([]byte(out), &epicDetail)
+	if epicDetail["status"] != "closed" {
+		t.Errorf("expected epic status closed after removing open child, got %v", epicDetail["status"])
+	}
+
+	// 13. Delete epic (all children are terminal)
+	out = run(t, "delete", epic.ID)
+	deletedEpic := parseBead(t, out)
+	if deletedEpic.Status != "deleted" {
+		t.Errorf("expected deleted status, got %s", deletedEpic.Status)
+	}
+}
+
 // TestDependencyChain tests creating a dependency chain, resolving blockers,
 // and verifying the unblocked computation.
 func TestDependencyChain(t *testing.T) {

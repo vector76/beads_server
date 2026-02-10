@@ -23,19 +23,20 @@ type fileData struct {
 	Beads []model.Bead `json:"beads"`
 }
 
-// rawBead mirrors model.Bead but uses a plain string for Status so that
-// legacy values ("resolved", "wontfix") survive JSON unmarshaling and can
-// be migrated to "closed" at load time.
+// rawBead mirrors model.Bead but uses a plain string for Status and Type so
+// that legacy values ("resolved", "wontfix", "epic") survive JSON unmarshaling
+// and can be migrated at load time.
 type rawBead struct {
 	ID          string          `json:"id"`
 	Title       string          `json:"title"`
 	Description string          `json:"description"`
 	Status      string          `json:"status"`
 	Priority    model.Priority  `json:"priority"`
-	Type        model.BeadType  `json:"type"`
+	Type        string          `json:"type"`
 	Tags        []string        `json:"tags"`
 	BlockedBy   []string        `json:"blocked_by"`
 	Assignee    string          `json:"assignee"`
+	ParentID    string          `json:"parent_id"`
 	Comments    []model.Comment `json:"comments"`
 	CreatedAt   time.Time       `json:"created_at"`
 	UpdatedAt   time.Time       `json:"updated_at"`
@@ -71,16 +72,22 @@ func Load(path string) (*Store, error) {
 		if status == "resolved" || status == "wontfix" {
 			status = model.StatusClosed
 		}
+		// Migrate legacy "epic" type to "task".
+		beadType := model.BeadType(rb.Type)
+		if beadType == "epic" {
+			beadType = model.TypeTask
+		}
 		s.beads[rb.ID] = model.Bead{
 			ID:          rb.ID,
 			Title:       rb.Title,
 			Description: rb.Description,
 			Status:      status,
 			Priority:    rb.Priority,
-			Type:        rb.Type,
+			Type:        beadType,
 			Tags:        rb.Tags,
 			BlockedBy:   rb.BlockedBy,
 			Assignee:    rb.Assignee,
+			ParentID:    rb.ParentID,
 			Comments:    rb.Comments,
 			CreatedAt:   rb.CreatedAt,
 			UpdatedAt:   rb.UpdatedAt,
@@ -208,6 +215,7 @@ type UpdateFields struct {
 	Tags        *[]string
 	BlockedBy   *[]string
 	Assignee    *string
+	ParentID    *string
 }
 
 // Update applies partial updates to a bead, sets updated_at, and persists.
@@ -243,6 +251,9 @@ func (s *Store) Update(id string, fields UpdateFields) (model.Bead, error) {
 	}
 	if fields.Assignee != nil {
 		b.Assignee = *fields.Assignee
+	}
+	if fields.ParentID != nil {
+		b.ParentID = *fields.ParentID
 	}
 
 	b.UpdatedAt = time.Now().UTC()

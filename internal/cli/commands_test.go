@@ -341,6 +341,78 @@ func TestAliasesHiddenFromHelp(t *testing.T) {
 	}
 }
 
+func TestAdd_WithParent(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	// Create a parent bead
+	out := runCmd(t, "add", "Parent bead")
+	parent := parseBeadFromOutput(t, out)
+
+	// Create a child with --parent
+	out = runCmd(t, "add", "Child bead", "--parent", parent.ID)
+	child := parseBeadFromOutput(t, out)
+
+	if child.ParentID != parent.ID {
+		t.Errorf("parent_id = %q, want %q", child.ParentID, parent.ID)
+	}
+}
+
+func TestMove_IntoAndOut(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	// Create epic and bead
+	out := runCmd(t, "add", "Epic")
+	epic := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Standalone")
+	bead := parseBeadFromOutput(t, out)
+
+	// Move into
+	out = runCmd(t, "move", bead.ID, "--into", epic.ID)
+	moved := parseBeadFromOutput(t, out)
+	if moved.ParentID != epic.ID {
+		t.Errorf("after move --into: parent_id = %q, want %q", moved.ParentID, epic.ID)
+	}
+
+	// Move out
+	out = runCmd(t, "move", bead.ID, "--out")
+	movedOut := parseBeadFromOutput(t, out)
+	if movedOut.ParentID != "" {
+		t.Errorf("after move --out: parent_id = %q, want empty", movedOut.ParentID)
+	}
+}
+
+func TestMove_RequiresFlag(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "add", "Bead")
+	bead := parseBeadFromOutput(t, out)
+
+	err := runCmdErr(t, "move", bead.ID)
+	if err == nil {
+		t.Fatal("expected error when neither --into nor --out specified")
+	}
+}
+
+func TestMove_BothFlagsRejected(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "add", "Epic")
+	epic := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Bead")
+	bead := parseBeadFromOutput(t, out)
+
+	err := runCmdErr(t, "move", bead.ID, "--into", epic.ID, "--out")
+	if err == nil {
+		t.Fatal("expected error when both --into and --out specified")
+	}
+}
+
 func TestDelete_NotFound(t *testing.T) {
 	ts := startTestServer(t)
 	setClientEnv(t, ts.URL)

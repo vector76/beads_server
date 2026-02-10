@@ -101,13 +101,25 @@ type claimRequest struct {
 // handleClaimBead handles POST /api/v1/beads/:id/claim.
 func (s *Server) handleClaimBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	st := s.storeFor(r)
 
 	// Resolve the ID first
-	existing, err := s.storeFor(r).Resolve(id)
+	existing, err := st.Resolve(id)
 	if err != nil {
 		var notFoundErr *store.NotFoundError
 		if errors.As(err, &notFoundErr) {
 			jsonError(w, err.Error(), http.StatusNotFound)
+			return
+		}
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// Reject claim on epics.
+	if err := st.ValidateClaimOnEpic(existing.ID); err != nil {
+		var conflictErr *store.ConflictError
+		if errors.As(err, &conflictErr) {
+			jsonError(w, conflictErr.Message, http.StatusConflict)
 			return
 		}
 		jsonError(w, err.Error(), http.StatusBadRequest)
@@ -125,7 +137,7 @@ func (s *Server) handleClaimBead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claimed, err := s.storeFor(r).Claim(existing.ID, req.User)
+	claimed, err := st.Claim(existing.ID, req.User)
 	if err != nil {
 		var conflictErr *store.ConflictError
 		if errors.As(err, &conflictErr) {

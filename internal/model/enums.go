@@ -100,7 +100,6 @@ const (
 	TypeBug     BeadType = "bug"
 	TypeFeature BeadType = "feature"
 	TypeTask    BeadType = "task"
-	TypeEpic    BeadType = "epic"
 	TypeChore   BeadType = "chore"
 )
 
@@ -108,7 +107,6 @@ var validBeadTypes = map[BeadType]bool{
 	TypeBug:     true,
 	TypeFeature: true,
 	TypeTask:    true,
-	TypeEpic:    true,
 	TypeChore:   true,
 }
 

@@ -40,6 +40,7 @@ type createRequest struct {
 	Tags        []string       `json:"tags"`
 	BlockedBy   []string       `json:"blocked_by"`
 	Assignee    string         `json:"assignee"`
+	ParentID    string         `json:"parent_id"`
 }
 
 // updateRequest is the JSON body for updating a bead.
@@ -54,12 +55,40 @@ type updateRequest struct {
 	RemoveTags  []string        `json:"remove_tags"`
 	BlockedBy   *[]string       `json:"blocked_by"`
 	Assignee    *string         `json:"assignee"`
+	ParentID    *string         `json:"parent_id"`
 }
 
 // unblockedResponse wraps a bead with an optional unblocked field.
 type unblockedResponse struct {
 	model.Bead
 	Unblocked []model.Bead `json:"unblocked,omitempty"`
+}
+
+// progressInfo contains the progress summary of an epic.
+type progressInfo struct {
+	Total      int `json:"total"`
+	Open       int `json:"open"`
+	InProgress int `json:"in_progress"`
+	Closed     int `json:"closed"`
+	Deleted    int `json:"deleted"`
+}
+
+// beadDetailResponse is the enriched response for GET /beads/:id.
+type beadDetailResponse struct {
+	model.Bead
+	IsEpic      bool             `json:"is_epic,omitempty"`
+	Progress    *progressInfo    `json:"progress,omitempty"`
+	Children    []childSummary   `json:"children,omitempty"`
+	ParentTitle string           `json:"parent_title,omitempty"`
+}
+
+type childSummary struct {
+	ID       string         `json:"id"`
+	Title    string         `json:"title"`
+	Status   model.Status   `json:"status"`
+	Priority model.Priority `json:"priority"`
+	Type     model.BeadType `json:"type"`
+	Assignee string         `json:"assignee"`
 }
 
 // handleCreateBead handles POST /api/v1/beads.
@@ -99,7 +128,20 @@ func (s *Server) handleCreateBead(w http.ResponseWriter, r *http.Request) {
 		b.Assignee = req.Assignee
 	}
 
-	created, err := s.storeFor(r).Create(b)
+	st := s.storeFor(r)
+
+	if req.ParentID != "" {
+		created, err := st.CreateWithParent(b, req.ParentID)
+		if err != nil {
+			code := errorCode(err)
+			jsonError(w, err.Error(), code)
+			return
+		}
+		jsonCreated(w, created)
+		return
+	}
+
+	created, err := st.Create(b)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
@@ -112,7 +154,8 @@ func (s *Server) handleCreateBead(w http.ResponseWriter, r *http.Request) {
 func (s *Server) handleGetBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 
-	b, err := s.storeFor(r).Resolve(id)
+	st := s.storeFor(r)
+	b, err := st.Resolve(id)
 	if err != nil {
 		var notFoundErr *store.NotFoundError
 		if errors.As(err, &notFoundErr) {
@@ -123,15 +166,56 @@ func (s *Server) handleGetBead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jsonOK(w, b)
+	resp := beadDetailResponse{Bead: b}
+
+	// Epic: add progress + children (including deleted for show)
+	children := st.ChildrenOf(b.ID)
+	if len(children) > 0 {
+		resp.IsEpic = true
+		progress := progressInfo{Total: len(children)}
+		var childList []childSummary
+		for _, c := range children {
+			switch c.Status {
+			case model.StatusOpen:
+				progress.Open++
+			case model.StatusInProgress:
+				progress.InProgress++
+			case model.StatusClosed:
+				progress.Closed++
+			case model.StatusDeleted:
+				progress.Deleted++
+			}
+			childList = append(childList, childSummary{
+				ID:       c.ID,
+				Title:    c.Title,
+				Status:   c.Status,
+				Priority: c.Priority,
+				Type:     c.Type,
+				Assignee: c.Assignee,
+			})
+		}
+		resp.Progress = &progress
+		resp.Children = childList
+	}
+
+	// Child: add parent_title
+	if b.ParentID != "" {
+		parent, err := st.Resolve(b.ParentID)
+		if err == nil {
+			resp.ParentTitle = parent.Title
+		}
+	}
+
+	jsonOK(w, resp)
 }
 
 // handleUpdateBead handles PATCH /api/v1/beads/:id.
 func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	st := s.storeFor(r)
 
 	// Resolve the ID first
-	existing, err := s.storeFor(r).Resolve(id)
+	existing, err := st.Resolve(id)
 	if err != nil {
 		var notFoundErr *store.NotFoundError
 		if errors.As(err, &notFoundErr) {
@@ -146,6 +230,44 @@ func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		jsonError(w, "invalid JSON body", http.StatusBadRequest)
 		return
+	}
+
+	// Handle parent_id changes (move operations) via dedicated store methods.
+	if req.ParentID != nil {
+		newParent := *req.ParentID
+		if newParent == "" {
+			// Move out
+			updated, err := st.MoveOut(existing.ID)
+			if err != nil {
+				code := errorCode(err)
+				jsonError(w, err.Error(), code)
+				return
+			}
+			jsonOK(w, updated)
+			return
+		}
+		// Move into
+		updated, err := st.MoveInto(existing.ID, newParent)
+		if err != nil {
+			code := errorCode(err)
+			jsonError(w, err.Error(), code)
+			return
+		}
+		jsonOK(w, updated)
+		return
+	}
+
+	// Reject status changes on epics.
+	if req.Status != nil {
+		if err := st.ValidateStatusChangeOnEpic(existing.ID); err != nil {
+			var conflictErr *store.ConflictError
+			if errors.As(err, &conflictErr) {
+				jsonError(w, conflictErr.Message, http.StatusConflict)
+				return
+			}
+			jsonError(w, err.Error(), http.StatusBadRequest)
+			return
+		}
 	}
 
 	fields := store.UpdateFields{
@@ -195,15 +317,20 @@ func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 		fields.Tags = &tags
 	}
 
-	updated, err := s.storeFor(r).Update(existing.ID, fields)
+	updated, err := st.Update(existing.ID, fields)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	// Recompute parent epic status if this is a child and status changed.
+	if req.Status != nil && existing.ParentID != "" {
+		st.RecomputeParentStatus(existing.ID)
+	}
+
 	// Check if status changed to a terminal state and compute unblocked
 	if req.Status != nil && isTerminalStatus(*req.Status) {
-		unblocked := s.storeFor(r).GetUnblocked(existing.ID)
+		unblocked := st.GetUnblocked(existing.ID)
 		if len(unblocked) > 0 {
 			jsonOK(w, unblockedResponse{Bead: updated, Unblocked: unblocked})
 			return
@@ -216,9 +343,10 @@ func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 // handleDeleteBead handles DELETE /api/v1/beads/:id.
 func (s *Server) handleDeleteBead(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
+	st := s.storeFor(r)
 
 	// Resolve the ID first
-	existing, err := s.storeFor(r).Resolve(id)
+	existing, err := st.Resolve(id)
 	if err != nil {
 		var notFoundErr *store.NotFoundError
 		if errors.As(err, &notFoundErr) {
@@ -229,14 +357,30 @@ func (s *Server) handleDeleteBead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	deleted, err := s.storeFor(r).Delete(existing.ID)
+	// Reject delete on epics with open children.
+	if err := st.ValidateDeleteOnEpic(existing.ID); err != nil {
+		var conflictErr *store.ConflictError
+		if errors.As(err, &conflictErr) {
+			jsonError(w, conflictErr.Message, http.StatusConflict)
+			return
+		}
+		jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	deleted, err := st.Delete(existing.ID)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
+	// Recompute parent epic status if this is a child.
+	if existing.ParentID != "" {
+		st.RecomputeParentStatus(existing.ID)
+	}
+
 	// Compute unblocked beads
-	unblocked := s.storeFor(r).GetUnblocked(existing.ID)
+	unblocked := st.GetUnblocked(existing.ID)
 	if len(unblocked) > 0 {
 		jsonOK(w, unblockedResponse{Bead: deleted, Unblocked: unblocked})
 		return
@@ -252,4 +396,17 @@ func isTerminalStatus(s model.Status) bool {
 		return true
 	}
 	return false
+}
+
+// errorCode returns the appropriate HTTP status code for a store error.
+func errorCode(err error) int {
+	var notFoundErr *store.NotFoundError
+	if errors.As(err, &notFoundErr) {
+		return http.StatusNotFound
+	}
+	var conflictErr *store.ConflictError
+	if errors.As(err, &conflictErr) {
+		return http.StatusConflict
+	}
+	return http.StatusBadRequest
 }

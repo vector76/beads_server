@@ -17,6 +17,7 @@ type Bead struct {
 	Tags        []string  `json:"tags"`
 	BlockedBy   []string  `json:"blocked_by"`
 	Assignee    string    `json:"assignee"`
+	ParentID    string    `json:"parent_id"`
 	Comments    []Comment `json:"comments"`
 	CreatedAt   time.Time `json:"created_at"`
 	UpdatedAt   time.Time `json:"updated_at"`
