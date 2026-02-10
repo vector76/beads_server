@@ -179,6 +179,13 @@ The `claim` command enables a multi-agent workflow:
 |---------|-------------|
 | `bs clean` | Purge closed/deleted beads older than 5 days (default). `--days N` overrides threshold; `--days 0` removes all |
 
+### Aliases
+
+The CLI supports hidden aliases that do not appear in help output but are fully functional:
+
+- `bs create` — alias for `bs add`
+- `bs resolve` — alias for `bs close`
+
 ## REST API
 
 All endpoints under `/api/v1/`. All requests require `Authorization: Bearer <token>` header (except `/api/v1/health`). All responses are `application/json`.

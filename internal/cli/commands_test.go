@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/yourorg/beads_server/internal/model"
@@ -234,6 +235,56 @@ func TestClean_RemovesClosedBeads(t *testing.T) {
 	shown := parseBeadFromOutput(t, out)
 	if shown.ID != openBead.ID {
 		t.Errorf("expected open bead to remain, got %q", shown.ID)
+	}
+}
+
+func TestCreateAlias(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	// "create" should behave identically to "add"
+	out := runCmd(t, "create", "Alias test bead", "--type", "feature", "--priority", "low")
+	created := parseBeadFromOutput(t, out)
+
+	if created.Title != "Alias test bead" {
+		t.Errorf("title = %q, want %q", created.Title, "Alias test bead")
+	}
+	if created.Type != model.TypeFeature {
+		t.Errorf("type = %q, want %q", created.Type, model.TypeFeature)
+	}
+	if created.Priority != model.PriorityLow {
+		t.Errorf("priority = %q, want %q", created.Priority, model.PriorityLow)
+	}
+}
+
+func TestResolveAlias(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	// Create a bead, then close it with "resolve"
+	out := runCmd(t, "add", "Resolve test bead")
+	created := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "resolve", created.ID)
+	resolved := parseBeadFromOutput(t, out)
+
+	if resolved.Status != model.StatusClosed {
+		t.Errorf("resolved status = %q, want %q", resolved.Status, model.StatusClosed)
+	}
+}
+
+func TestAliasesHiddenFromHelp(t *testing.T) {
+	// The aliases must not appear as commands in help output.
+	// Help lists commands with leading whitespace: "  create ..."
+	// We check for that pattern to avoid false matches against
+	// descriptions that may contain the word (e.g. "Create a new bead").
+	out := runCmd(t, "--help")
+
+	if strings.Contains(out, "\n  create") {
+		t.Error("'create' alias should not appear as a command in help output")
+	}
+	if strings.Contains(out, "\n  resolve") {
+		t.Error("'resolve' alias should not appear as a command in help output")
 	}
 }
 

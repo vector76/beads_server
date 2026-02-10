@@ -47,5 +47,15 @@ func NewRootCmd() *cobra.Command {
 		root.AddCommand(cmd)
 	}
 
+	// Hidden aliases: "create" -> "add", "resolve" -> "close"
+	createAlias := newAddCmd()
+	createAlias.Use = "create <title>"
+	createAlias.Hidden = true
+	root.AddCommand(createAlias)
+
+	resolveAlias := newStatusCmd("resolve", "closed")
+	resolveAlias.Hidden = true
+	root.AddCommand(resolveAlias)
+
 	return root
 }
