@@ -15,6 +15,7 @@ func NewRootCmd() *cobra.Command {
 		Version: version,
 	}
 
+	root.CompletionOptions.DisableDefaultCmd = true
 	root.AddGroup(
 		&cobra.Group{ID: "server", Title: "Server Commands:"},
 		&cobra.Group{ID: "client", Title: "Client Commands:"},
