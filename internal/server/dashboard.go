@@ -61,7 +61,11 @@ func sortByUpdatedDesc(beads []store.BeadSummary) {
 }
 
 var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncMap{
-	"fmtTime": func(t time.Time) string { return t.Format("2006-01-02 15:04") },
+	"fmtTime": func(t time.Time) template.HTML {
+		utc := t.UTC().Format(time.RFC3339)
+		display := t.UTC().Format("2006-01-02 15:04")
+		return template.HTML(`<time datetime="` + utc + `">` + display + `</time>`)
+	},
 }).Parse(`<!DOCTYPE html>
 <html>
 <head>
@@ -117,6 +121,17 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 
 </div>
 {{end}}
+<script>
+document.querySelectorAll("time[datetime]").forEach(function(el) {
+  var d = new Date(el.getAttribute("datetime"));
+  if (isNaN(d)) return;
+  var pad = function(n) { return n < 10 ? "0" + n : "" + n; };
+  var formatted = d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()) +
+    " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  var tz = d.toLocaleTimeString(undefined, {timeZoneName: "short"}).split(" ").pop();
+  el.textContent = formatted + " " + tz;
+});
+</script>
 </body>
 </html>
 `))

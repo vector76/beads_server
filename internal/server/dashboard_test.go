@@ -97,10 +97,33 @@ func TestDashboardRendersUpdateTime(t *testing.T) {
 
 	body := w.Body.String()
 
-	// The formatted time should appear in YYYY-MM-DD HH:MM format
-	expectedTime := created.UpdatedAt.Format("2006-01-02 15:04")
-	if !strings.Contains(body, expectedTime) {
-		t.Errorf("expected formatted time %q in dashboard HTML, got:\n%s", expectedTime, body)
+	// Should render a <time> element with RFC3339 datetime attribute
+	utcTime := created.UpdatedAt.UTC().Format(time.RFC3339)
+	expectedAttr := `datetime="` + utcTime + `"`
+	if !strings.Contains(body, expectedAttr) {
+		t.Errorf("expected datetime attribute %q in dashboard HTML, got:\n%s", expectedAttr, body)
+	}
+
+	// The display text inside <time> should be YYYY-MM-DD HH:MM
+	displayTime := created.UpdatedAt.UTC().Format("2006-01-02 15:04")
+	expectedTag := `<time datetime="` + utcTime + `">` + displayTime + `</time>`
+	if !strings.Contains(body, expectedTag) {
+		t.Errorf("expected <time> element %q in dashboard HTML, got:\n%s", expectedTag, body)
+	}
+}
+
+func TestDashboardContainsTimezoneScript(t *testing.T) {
+	srv := crudServer(t)
+
+	createViaAPI(t, srv, map[string]any{"title": "Script check", "status": "open"})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, `document.querySelectorAll("time[datetime]")`) {
+		t.Error("expected inline timezone conversion script in dashboard HTML")
 	}
 }
 
