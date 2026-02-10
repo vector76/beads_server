@@ -177,7 +177,7 @@ The `claim` command enables a multi-agent workflow:
 
 | Command | Description |
 |---------|-------------|
-| `bs clean` | Purge closed/deleted beads older than 5 days (default). `--days N` overrides threshold; `--days 0` removes all |
+| `bs clean` | Purge closed/deleted beads older than 5 days (default). `--days N` overrides threshold (accepts decimals, e.g. `--days 0.5`); `--days 0` removes all. `--hours N` can be used instead (mutually exclusive with `--days`) |
 
 ### Aliases
 

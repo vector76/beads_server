@@ -389,6 +389,60 @@ func TestClean_KeepsRecentClosedBeads(t *testing.T) {
 	}
 }
 
+func TestClean_FractionalDays(t *testing.T) {
+	srv := crudServer(t)
+	createViaAPI(t, srv, map[string]any{"title": "Just closed", "status": "closed"})
+
+	// 0.5 days = 12 hours; a just-created bead should not be removed
+	req := authReq(http.MethodPost, "/api/v1/clean", map[string]any{"days": 0.5})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp cleanResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+
+	if resp.Removed != 0 {
+		t.Fatalf("expected 0 removed (bead is recent), got %d", resp.Removed)
+	}
+}
+
+func TestClean_FractionalDaysZero(t *testing.T) {
+	srv := crudServer(t)
+	createViaAPI(t, srv, map[string]any{"title": "Closed", "status": "closed"})
+
+	// 0.0 should remove all closed beads (same as integer 0)
+	req := authReq(http.MethodPost, "/api/v1/clean", map[string]any{"days": 0.0})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp cleanResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+
+	if resp.Removed != 1 {
+		t.Fatalf("expected 1 removed, got %d", resp.Removed)
+	}
+}
+
+func TestClean_NegativeFractionalDaysRejected(t *testing.T) {
+	srv := crudServer(t)
+
+	req := authReq(http.MethodPost, "/api/v1/clean", map[string]any{"days": -0.5})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
 func TestClean_RequiresAuth(t *testing.T) {
 	srv := crudServer(t)
 

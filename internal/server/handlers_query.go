@@ -141,7 +141,7 @@ func (s *Server) handleClaimBead(w http.ResponseWriter, r *http.Request) {
 
 // cleanRequest is the JSON body for the clean operation.
 type cleanRequest struct {
-	Days *int `json:"days"`
+	Days *float64 `json:"days"`
 }
 
 // cleanResponse is the JSON response for the clean operation.
@@ -157,7 +157,7 @@ func (s *Server) handleClean(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	days := 5
+	days := 5.0
 	if req.Days != nil {
 		if *req.Days < 0 {
 			jsonError(w, "days must be non-negative", http.StatusBadRequest)
@@ -166,7 +166,7 @@ func (s *Server) handleClean(w http.ResponseWriter, r *http.Request) {
 		days = *req.Days
 	}
 
-	cutoff := time.Now().UTC().AddDate(0, 0, -days)
+	cutoff := time.Now().UTC().Add(-time.Duration(days * 24 * float64(time.Hour)))
 
 	removed, err := s.storeFor(r).Clean(cutoff)
 	if err != nil {

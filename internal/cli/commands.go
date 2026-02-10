@@ -193,19 +193,32 @@ func newStatusCmd(name string, targetStatus string) *cobra.Command {
 }
 
 func newCleanCmd() *cobra.Command {
-	var days int
+	var days float64
+	var hours float64
 
 	cmd := &cobra.Command{
 		Use:   "clean",
 		Short: "Purge old closed/deleted beads",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			daysChanged := cmd.Flags().Changed("days")
+			hoursChanged := cmd.Flags().Changed("hours")
+
+			if daysChanged && hoursChanged {
+				return fmt.Errorf("cannot specify both --days and --hours")
+			}
+
+			value := days
+			if hoursChanged {
+				value = hours / 24.0
+			}
+
 			c, err := NewClientFromEnv()
 			if err != nil {
 				return err
 			}
 
 			body := map[string]any{
-				"days": days,
+				"days": value,
 			}
 
 			data, err := c.Do("POST", "/api/v1/clean", body)
@@ -222,7 +235,8 @@ func newCleanCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().IntVar(&days, "days", 5, "remove beads last updated more than N days ago (0 = all)")
+	cmd.Flags().Float64Var(&days, "days", 5, "remove beads last updated more than N days ago; accepts decimals (0 = all)")
+	cmd.Flags().Float64Var(&hours, "hours", 0, "remove beads last updated more than N hours ago; accepts decimals (0 = all)")
 
 	return cmd
 }

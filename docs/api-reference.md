@@ -364,7 +364,7 @@ Permanently removes beads with status `closed` or `deleted` whose `updated_at` i
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `days` | int | `5` | Remove beads last updated more than N days ago. `0` removes all closed/deleted beads regardless of age |
+| `days` | number | `5` | Remove beads last updated more than N days ago. Accepts decimals (e.g., `0.5` for 12 hours). `0` removes all closed/deleted beads regardless of age |
 
 **Response** `200`:
 

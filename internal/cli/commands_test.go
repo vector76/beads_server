@@ -238,6 +238,59 @@ func TestClean_RemovesClosedBeads(t *testing.T) {
 	}
 }
 
+func TestClean_FractionalDays(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "add", "Closed bead")
+	created := parseBeadFromOutput(t, out)
+	runCmd(t, "close", created.ID)
+
+	// 0.5 days = 12 hours; just-closed bead should NOT be removed
+	out = runCmd(t, "clean", "--days", "0.5")
+	var resp struct {
+		Removed int `json:"removed"`
+	}
+	json.Unmarshal([]byte(out), &resp)
+
+	if resp.Removed != 0 {
+		t.Fatalf("expected 0 removed (bead is recent), got %d", resp.Removed)
+	}
+}
+
+func TestClean_Hours(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "add", "Closed bead")
+	created := parseBeadFromOutput(t, out)
+	runCmd(t, "close", created.ID)
+
+	// --hours 0 should remove all closed beads
+	out = runCmd(t, "clean", "--hours", "0")
+	var resp struct {
+		Removed int `json:"removed"`
+	}
+	json.Unmarshal([]byte(out), &resp)
+
+	if resp.Removed != 1 {
+		t.Fatalf("expected 1 removed, got %d", resp.Removed)
+	}
+}
+
+func TestClean_DaysAndHoursMutuallyExclusive(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	err := runCmdErr(t, "clean", "--days", "1", "--hours", "12")
+	if err == nil {
+		t.Fatal("expected error when both --days and --hours specified")
+	}
+	if !strings.Contains(err.Error(), "cannot specify both --days and --hours") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
 func TestCreateAlias(t *testing.T) {
 	ts := startTestServer(t)
 	setClientEnv(t, ts.URL)
