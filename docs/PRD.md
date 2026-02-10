@@ -60,6 +60,8 @@ bs <command>                 # CLI client mode (talks to the server)
 | `BS_USER` | Client | Agent/user identity for `claim` and `comment` author (default: `anonymous`) |
 | `BS_PROJECTS_FILE` | Server | Path to multi-project config file (mutually exclusive with `BS_TOKEN` for server) |
 
+**`.env` file fallback:** The CLI client loads `BS_TOKEN`, `BS_USER`, and `BS_URL` from a `.env` file in the current directory when the corresponding environment variable is not set. Environment variables always take precedence.
+
 ## Data Model
 
 ### Bead (Issue)
@@ -243,7 +245,7 @@ All errors return a JSON object: `{"error": "description of what went wrong"}` w
 
 ```json
 {
-  "blocked_by": [
+  "active_blockers": [
     {"id": "bd-a1b2c3d4", "title": "Fix auth", "status": "open", "priority": "high", "type": "bug", "assignee": "agent-1"}
   ],
   "resolved_blockers": [
@@ -255,7 +257,7 @@ All errors return a JSON object: `{"error": "description of what went wrong"}` w
 }
 ```
 
-- **`blocked_by`**: Only active blockers (status = `open` or `in_progress`). If this list is empty, the bead is unblocked — no further inspection needed
+- **`active_blockers`**: Only active blockers (status = `open` or `in_progress`). If this list is empty, the bead is unblocked — no further inspection needed
 - **`resolved_blockers`**: Blockers in the storage-layer `blocked_by` list whose status is `closed` or `deleted`. Included for context; agents can ignore this field
 - **`blocks`**: Beads that list this bead in their `blocked_by` (computed inverse). Only active beads (not deleted) are shown
 
