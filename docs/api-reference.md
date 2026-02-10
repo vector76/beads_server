@@ -346,6 +346,38 @@ GET /api/v1/beads/:id/deps
 
 ---
 
+## Clean (Purge Old Beads)
+
+```
+POST /api/v1/clean
+```
+
+Permanently removes beads with status `closed` or `deleted` whose `updated_at` is older than the specified threshold.
+
+**Request body:**
+
+```json
+{
+  "days": 5
+}
+```
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `days` | int | `5` | Remove beads last updated more than N days ago. `0` removes all closed/deleted beads regardless of age |
+
+**Response** `200`:
+
+```json
+{
+  "removed": 3
+}
+```
+
+**Errors:** `400` if `days` is negative. `401` if not authenticated.
+
+---
+
 ## Error Format
 
 All errors return:

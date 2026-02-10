@@ -100,3 +100,13 @@ Any status can transition to any other status via `edit --status`. There are no 
 | `delete` | any -> `deleted` |
 
 `claim` is the only command with guards: it rejects if the bead is in a terminal state or already claimed by a different user.
+
+## Hard Delete (Clean)
+
+The `clean` command permanently removes beads from the store (hard delete), unlike `delete` which is a soft delete.
+
+- Only beads with status `closed` or `deleted` are eligible
+- Cutoff is based on `updated_at`: beads last updated more than N days ago are removed (default: 5 days)
+- `--days 0` removes all closed/deleted beads regardless of age
+- Adding a comment to a closed/deleted bead resets the clock (updates `updated_at`)
+- Removed beads are gone permanently and cannot be recovered

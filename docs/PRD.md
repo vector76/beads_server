@@ -167,6 +167,12 @@ The `claim` command enables a multi-agent workflow:
 |---------|-------------|
 | `bs comment <id> "This is a comment"` | Add a comment to a bead. Author is set from `BS_USER` |
 
+### Maintenance
+
+| Command | Description |
+|---------|-------------|
+| `bs clean` | Purge closed/deleted beads older than 5 days (default). `--days N` overrides threshold; `--days 0` removes all |
+
 ## REST API
 
 All endpoints under `/api/v1/`. All requests require `Authorization: Bearer <token>` header (except `/api/v1/health`). All responses are `application/json`.
@@ -184,6 +190,7 @@ All endpoints under `/api/v1/`. All requests require `Authorization: Bearer <tok
 | `DELETE` | `/api/v1/beads/:id/link/:other_id` | Remove a dependency |
 | `GET` | `/api/v1/beads/:id/deps` | Get direct dependencies (active blockers, resolved blockers, blocks) |
 | `GET` | `/api/v1/search?q=...` | Substring search |
+| `POST` | `/api/v1/clean` | Purge old closed/deleted beads |
 | `GET` | `/api/v1/health` | Health check (does not require auth) |
 
 ### Pagination

@@ -76,6 +76,7 @@ func New(cfg Config, p StoreProvider) (*Server, error) {
 		r.Delete("/api/v1/beads/{id}/link/{other_id}", srv.handleUnlinkBead)
 		r.Get("/api/v1/beads/{id}/deps", srv.handleGetDeps)
 		r.Get("/api/v1/search", srv.handleSearch)
+		r.Post("/api/v1/clean", srv.handleClean)
 	})
 
 	return srv, nil

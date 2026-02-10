@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/yourorg/beads_server/internal/model"
@@ -136,6 +137,44 @@ func (s *Server) handleClaimBead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonOK(w, claimed)
+}
+
+// cleanRequest is the JSON body for the clean operation.
+type cleanRequest struct {
+	Days *int `json:"days"`
+}
+
+// cleanResponse is the JSON response for the clean operation.
+type cleanResponse struct {
+	Removed int `json:"removed"`
+}
+
+// handleClean handles POST /api/v1/clean.
+func (s *Server) handleClean(w http.ResponseWriter, r *http.Request) {
+	var req cleanRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		jsonError(w, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+
+	days := 5
+	if req.Days != nil {
+		if *req.Days < 0 {
+			jsonError(w, "days must be non-negative", http.StatusBadRequest)
+			return
+		}
+		days = *req.Days
+	}
+
+	cutoff := time.Now().UTC().AddDate(0, 0, -days)
+
+	removed, err := s.storeFor(r).Clean(cutoff)
+	if err != nil {
+		jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	jsonOK(w, cleanResponse{Removed: removed})
 }
 
 // intParam parses an integer query parameter with a default value.

@@ -192,6 +192,41 @@ func newStatusCmd(name string, targetStatus string) *cobra.Command {
 	}
 }
 
+func newCleanCmd() *cobra.Command {
+	var days int
+
+	cmd := &cobra.Command{
+		Use:   "clean",
+		Short: "Purge old closed/deleted beads",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := NewClientFromEnv()
+			if err != nil {
+				return err
+			}
+
+			body := map[string]any{
+				"days": days,
+			}
+
+			data, err := c.Do("POST", "/api/v1/clean", body)
+			if err != nil {
+				return err
+			}
+
+			out, err := prettyJSON(data)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), out)
+			return nil
+		},
+	}
+
+	cmd.Flags().IntVar(&days, "days", 5, "remove beads last updated more than N days ago (0 = all)")
+
+	return cmd
+}
+
 func newDeleteCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "delete <id>",

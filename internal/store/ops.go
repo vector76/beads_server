@@ -120,6 +120,41 @@ func (s *Store) AddComment(beadID string, comment model.Comment) (model.Bead, er
 	return b, nil
 }
 
+// Clean permanently removes beads with status closed or deleted whose updated_at
+// is older than the given cutoff time. Returns the number of beads removed.
+func (s *Store) Clean(cutoff time.Time) (int, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	var toRemove []string
+	for id, b := range s.beads {
+		if (b.Status == model.StatusClosed || b.Status == model.StatusDeleted) && b.UpdatedAt.Before(cutoff) {
+			toRemove = append(toRemove, id)
+		}
+	}
+
+	if len(toRemove) == 0 {
+		return 0, nil
+	}
+
+	// Backup for rollback
+	removed := make(map[string]model.Bead, len(toRemove))
+	for _, id := range toRemove {
+		removed[id] = s.beads[id]
+		delete(s.beads, id)
+	}
+
+	if err := s.save(); err != nil {
+		// Rollback
+		for id, b := range removed {
+			s.beads[id] = b
+		}
+		return 0, err
+	}
+
+	return len(toRemove), nil
+}
+
 // Claim atomically sets a bead's status to in_progress and assignee to the given user.
 // Returns ConflictError if the bead is already claimed by a different user or in a terminal state.
 // Idempotent: claiming a bead already claimed by the same user succeeds.

@@ -80,6 +80,7 @@ bs close bd-a1b2c3d4
 | `bs link <id> --blocked-by <other>` | Add a dependency |
 | `bs unlink <id> --blocked-by <other>` | Remove a dependency |
 | `bs deps <id>` | Show dependencies (active blockers, resolved blockers, blocks) |
+| `bs clean` | Purge old closed/deleted beads (`--days N`, default 5; `--days 0` removes all) |
 
 All output is pretty-printed JSON. IDs can be shortened to any unambiguous prefix (e.g., `bd-a1b` or just `a1b`).
 

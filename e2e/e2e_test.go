@@ -215,6 +215,60 @@ func TestFullLifecycle(t *testing.T) {
 	}
 }
 
+// TestCleanPurgesClosedBeads tests that clean removes closed/deleted beads
+// and leaves open ones untouched.
+func TestCleanPurgesClosedBeads(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "clean-agent")
+
+	// Create beads in various states
+	out := run(t, "add", "Open bead")
+	openBead := parseBead(t, out)
+
+	out = run(t, "add", "To close")
+	toClose := parseBead(t, out)
+	run(t, "close", toClose.ID)
+
+	out = run(t, "add", "To delete")
+	toDelete := parseBead(t, out)
+	run(t, "delete", toDelete.ID)
+
+	// Verify we have 3 beads total
+	out = run(t, "list", "--all")
+	allResult := parseListResult(t, out)
+	if allResult.Total != 3 {
+		t.Fatalf("expected 3 beads before clean, got %d", allResult.Total)
+	}
+
+	// Clean with --days 0 to remove all closed/deleted
+	out = run(t, "clean", "--days", "0")
+	var resp struct {
+		Removed int `json:"removed"`
+	}
+	if err := json.Unmarshal([]byte(out), &resp); err != nil {
+		t.Fatalf("parse clean response: %v\noutput: %s", err, out)
+	}
+	if resp.Removed != 2 {
+		t.Fatalf("expected 2 removed, got %d", resp.Removed)
+	}
+
+	// Only the open bead should remain
+	out = run(t, "list", "--all")
+	allResult = parseListResult(t, out)
+	if allResult.Total != 1 {
+		t.Fatalf("expected 1 bead after clean, got %d", allResult.Total)
+	}
+	if allResult.Beads[0].ID != openBead.ID {
+		t.Errorf("remaining bead = %q, want %q", allResult.Beads[0].ID, openBead.ID)
+	}
+
+	// Cleaned beads should be gone (hard deleted)
+	err := runExpectErr(t, "show", toClose.ID)
+	if err == nil {
+		t.Error("expected error showing cleaned bead, got nil")
+	}
+}
+
 // TestMultiAgentConflict tests the scenario where two agents try to claim
 // the same bead, verifying conflict handling.
 func TestMultiAgentConflict(t *testing.T) {

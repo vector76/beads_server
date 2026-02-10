@@ -330,3 +330,73 @@ func TestClaimBead_TerminalState(t *testing.T) {
 		t.Fatalf("expected 409 for terminal state, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
+// --- Clean tests ---
+
+func TestClean_DaysZeroRemovesAll(t *testing.T) {
+	srv := crudServer(t)
+	createViaAPI(t, srv, map[string]any{"title": "Closed 1", "status": "closed"})
+	createViaAPI(t, srv, map[string]any{"title": "Closed 2", "status": "closed"})
+	createViaAPI(t, srv, map[string]any{"title": "Open stays"})
+
+	req := authReq(http.MethodPost, "/api/v1/clean", map[string]any{"days": 0})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var resp cleanResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+
+	if resp.Removed != 2 {
+		t.Fatalf("expected 2 removed, got %d", resp.Removed)
+	}
+
+	// Open bead should still exist
+	all := srv.Store.All()
+	if len(all) != 1 {
+		t.Fatalf("expected 1 remaining bead, got %d", len(all))
+	}
+}
+
+func TestClean_NegativeDaysRejected(t *testing.T) {
+	srv := crudServer(t)
+
+	req := authReq(http.MethodPost, "/api/v1/clean", map[string]any{"days": -1})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d", w.Code)
+	}
+}
+
+func TestClean_KeepsRecentClosedBeads(t *testing.T) {
+	srv := crudServer(t)
+	createViaAPI(t, srv, map[string]any{"title": "Just closed", "status": "closed"})
+
+	req := authReq(http.MethodPost, "/api/v1/clean", map[string]any{"days": 5})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	var resp cleanResponse
+	json.NewDecoder(w.Body).Decode(&resp)
+
+	if resp.Removed != 0 {
+		t.Fatalf("expected 0 removed, got %d", resp.Removed)
+	}
+}
+
+func TestClean_RequiresAuth(t *testing.T) {
+	srv := crudServer(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/clean", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusUnauthorized {
+		t.Fatalf("expected 401, got %d", w.Code)
+	}
+}

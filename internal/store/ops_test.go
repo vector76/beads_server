@@ -281,3 +281,166 @@ func TestClaimNotFound(t *testing.T) {
 		t.Error("expected non-ConflictError for not found, got ConflictError")
 	}
 }
+
+// --- Clean tests ---
+
+func TestCleanRemovesOldClosedBeads(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	b := newBeadWithFields("bd-cln00001", "Old closed", model.StatusClosed, model.PriorityMedium, model.TypeTask, "", nil, nil, old)
+	s.Create(b)
+
+	cutoff := time.Now().UTC().Add(-5 * 24 * time.Hour)
+	removed, err := s.Clean(cutoff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 1 {
+		t.Fatalf("expected 1 removed, got %d", removed)
+	}
+
+	_, err = s.Get("bd-cln00001")
+	if err == nil {
+		t.Error("expected bead to be removed")
+	}
+}
+
+func TestCleanRemovesOldDeletedBeads(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	b := newBeadWithFields("bd-cln00001", "Old deleted", model.StatusDeleted, model.PriorityMedium, model.TypeTask, "", nil, nil, old)
+	s.Create(b)
+
+	cutoff := time.Now().UTC().Add(-5 * 24 * time.Hour)
+	removed, err := s.Clean(cutoff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 1 {
+		t.Fatalf("expected 1 removed, got %d", removed)
+	}
+}
+
+func TestCleanKeepsRecentClosedBeads(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	recent := time.Now().UTC().Add(-1 * 24 * time.Hour)
+	b := newBeadWithFields("bd-cln00001", "Recent closed", model.StatusClosed, model.PriorityMedium, model.TypeTask, "", nil, nil, recent)
+	s.Create(b)
+
+	cutoff := time.Now().UTC().Add(-5 * 24 * time.Hour)
+	removed, err := s.Clean(cutoff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 0 {
+		t.Fatalf("expected 0 removed, got %d", removed)
+	}
+
+	_, err = s.Get("bd-cln00001")
+	if err != nil {
+		t.Error("expected bead to still exist")
+	}
+}
+
+func TestCleanKeepsOpenBeads(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	b := newBeadWithFields("bd-cln00001", "Old open", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, old)
+	s.Create(b)
+
+	cutoff := time.Now().UTC().Add(-5 * 24 * time.Hour)
+	removed, err := s.Clean(cutoff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 0 {
+		t.Fatalf("expected 0 removed, got %d", removed)
+	}
+}
+
+func TestCleanKeepsInProgressBeads(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	b := newBeadWithFields("bd-cln00001", "Old in progress", model.StatusInProgress, model.PriorityMedium, model.TypeTask, "", nil, nil, old)
+	s.Create(b)
+
+	cutoff := time.Now().UTC().Add(-5 * 24 * time.Hour)
+	removed, err := s.Clean(cutoff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 0 {
+		t.Fatalf("expected 0 removed, got %d", removed)
+	}
+}
+
+func TestCleanMixedBeads(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	recent := time.Now().UTC().Add(-1 * 24 * time.Hour)
+
+	// Old closed - should be removed
+	s.Create(newBeadWithFields("bd-cln00001", "Old closed", model.StatusClosed, model.PriorityMedium, model.TypeTask, "", nil, nil, old))
+	// Old deleted - should be removed
+	s.Create(newBeadWithFields("bd-cln00002", "Old deleted", model.StatusDeleted, model.PriorityMedium, model.TypeTask, "", nil, nil, old))
+	// Old open - should stay
+	s.Create(newBeadWithFields("bd-cln00003", "Old open", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, old))
+	// Recent closed - should stay
+	s.Create(newBeadWithFields("bd-cln00004", "Recent closed", model.StatusClosed, model.PriorityMedium, model.TypeTask, "", nil, nil, recent))
+
+	cutoff := time.Now().UTC().Add(-5 * 24 * time.Hour)
+	removed, err := s.Clean(cutoff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 2 {
+		t.Fatalf("expected 2 removed, got %d", removed)
+	}
+
+	all := s.All()
+	if len(all) != 2 {
+		t.Fatalf("expected 2 remaining beads, got %d", len(all))
+	}
+}
+
+func TestCleanPersists(t *testing.T) {
+	path := tempPath(t)
+	s, _ := Load(path)
+
+	old := time.Now().UTC().Add(-10 * 24 * time.Hour)
+	s.Create(newBeadWithFields("bd-cln00001", "Old closed", model.StatusClosed, model.PriorityMedium, model.TypeTask, "", nil, nil, old))
+
+	cutoff := time.Now().UTC().Add(-5 * 24 * time.Hour)
+	s.Clean(cutoff)
+
+	// Reload and verify
+	s2, err := Load(path)
+	if err != nil {
+		t.Fatalf("reload: %v", err)
+	}
+	if len(s2.All()) != 0 {
+		t.Fatalf("expected 0 beads after reload, got %d", len(s2.All()))
+	}
+}
+
+func TestCleanNothingToRemove(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	recent := time.Now().UTC()
+	s.Create(newBeadWithFields("bd-cln00001", "Recent open", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, recent))
+
+	cutoff := time.Now().UTC().Add(-5 * 24 * time.Hour)
+	removed, err := s.Clean(cutoff)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if removed != 0 {
+		t.Fatalf("expected 0 removed, got %d", removed)
+	}
+}

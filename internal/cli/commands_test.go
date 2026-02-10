@@ -199,6 +199,45 @@ func TestEdit_NoFlags(t *testing.T) {
 	}
 }
 
+func TestClean_RemovesClosedBeads(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	// Create a closed bead and an open bead
+	runCmd(t, "add", "Closed bead")
+	out := runCmd(t, "add", "Open bead")
+	openBead := parseBeadFromOutput(t, out)
+
+	// Close the first bead via list + close
+	out = runCmd(t, "list")
+	var result store.ListResult
+	json.Unmarshal([]byte(out), &result)
+	for _, b := range result.Beads {
+		if b.Title == "Closed bead" {
+			runCmd(t, "close", b.ID)
+			break
+		}
+	}
+
+	// Clean with days=0 to remove all closed beads
+	out = runCmd(t, "clean", "--days", "0")
+	var resp struct {
+		Removed int `json:"removed"`
+	}
+	json.Unmarshal([]byte(out), &resp)
+
+	if resp.Removed != 1 {
+		t.Fatalf("expected 1 removed, got %d", resp.Removed)
+	}
+
+	// Open bead should still exist
+	out = runCmd(t, "show", openBead.ID)
+	shown := parseBeadFromOutput(t, out)
+	if shown.ID != openBead.ID {
+		t.Errorf("expected open bead to remain, got %q", shown.ID)
+	}
+}
+
 func TestDelete_NotFound(t *testing.T) {
 	ts := startTestServer(t)
 	setClientEnv(t, ts.URL)
