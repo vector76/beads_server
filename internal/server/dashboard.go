@@ -3,6 +3,8 @@ package server
 import (
 	"html/template"
 	"net/http"
+	"sort"
+	"time"
 
 	"github.com/yourorg/beads_server/internal/model"
 	"github.com/yourorg/beads_server/internal/store"
@@ -39,6 +41,9 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 				dp.Closed = append(dp.Closed, b)
 			}
 		}
+		sortByUpdatedDesc(dp.InProgress)
+		sortByUpdatedDesc(dp.Open)
+		sortByUpdatedDesc(dp.Closed)
 		data.Projects = append(data.Projects, dp)
 	}
 
@@ -48,7 +53,16 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE html>
+// sortByUpdatedDesc sorts beads by UpdatedAt descending (most recent first).
+func sortByUpdatedDesc(beads []store.BeadSummary) {
+	sort.Slice(beads, func(i, j int) bool {
+		return beads[j].UpdatedAt.Before(beads[i].UpdatedAt)
+	})
+}
+
+var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncMap{
+	"fmtTime": func(t time.Time) string { return t.Format("2006-01-02 15:04") },
+}).Parse(`<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
@@ -80,24 +94,24 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
 {{if .InProgress}}
 <h3>In Progress</h3>
 <table>
-<tr><th>ID</th><th>Title</th><th>Assignee</th><th>Priority</th></tr>
-{{range .InProgress}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Assignee}}</td><td>{{.Priority}}</td></tr>
+<tr><th>ID</th><th>Title</th><th>Assignee</th><th>Priority</th><th>Updated</th></tr>
+{{range .InProgress}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Assignee}}</td><td>{{.Priority}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
 {{end}}</table>
 {{end}}
 
 {{if .Open}}
 <h3>Open</h3>
 <table>
-<tr><th>ID</th><th>Title</th><th>Priority</th><th>Type</th></tr>
-{{range .Open}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td></tr>
+<tr><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
+{{range .Open}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
 {{end}}</table>
 {{end}}
 
 {{if .Closed}}
 <h3>Closed ({{len .Closed}})</h3>
 <table>
-<tr><th>ID</th><th>Title</th><th>Priority</th></tr>
-{{range .Closed}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Priority}}</td></tr>
+<tr><th>ID</th><th>Title</th><th>Priority</th><th>Updated</th></tr>
+{{range .Closed}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
 {{end}}</table>
 {{end}}
 

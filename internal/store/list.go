@@ -2,18 +2,20 @@ package store
 
 import (
 	"sort"
+	"time"
 
 	"github.com/yourorg/beads_server/internal/model"
 )
 
 // BeadSummary contains the key fields returned by list and search.
 type BeadSummary struct {
-	ID       string         `json:"id"`
-	Title    string         `json:"title"`
-	Status   model.Status   `json:"status"`
-	Priority model.Priority `json:"priority"`
-	Type     model.BeadType `json:"type"`
-	Assignee string         `json:"assignee"`
+	ID        string         `json:"id"`
+	Title     string         `json:"title"`
+	Status    model.Status   `json:"status"`
+	Priority  model.Priority `json:"priority"`
+	Type      model.BeadType `json:"type"`
+	Assignee  string         `json:"assignee"`
+	UpdatedAt time.Time      `json:"updated_at"`
 }
 
 // ListFilters specifies filtering criteria for listing beads.
@@ -40,12 +42,13 @@ type ListResult struct {
 
 func summaryFromBead(b model.Bead) BeadSummary {
 	return BeadSummary{
-		ID:       b.ID,
-		Title:    b.Title,
-		Status:   b.Status,
-		Priority: b.Priority,
-		Type:     b.Type,
-		Assignee: b.Assignee,
+		ID:        b.ID,
+		Title:     b.Title,
+		Status:    b.Status,
+		Priority:  b.Priority,
+		Type:      b.Type,
+		Assignee:  b.Assignee,
+		UpdatedAt: b.UpdatedAt,
 	}
 }
 
