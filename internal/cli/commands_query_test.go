@@ -153,6 +153,142 @@ func TestMine(t *testing.T) {
 	}
 }
 
+func TestList_HierarchicalWithEpic(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	// Create epic with children
+	out := runCmd(t, "add", "My Epic")
+	epic := parseBeadFromOutput(t, out)
+	runCmd(t, "add", "Child one", "--parent", epic.ID)
+	runCmd(t, "add", "Child two", "--parent", epic.ID)
+
+	// Create standalone bead
+	runCmd(t, "add", "Standalone")
+
+	out = runCmd(t, "list")
+	var result map[string]any
+	json.Unmarshal([]byte(out), &result)
+
+	// Total should be 2 (epic + standalone), not 4
+	total := int(result["total"].(float64))
+	if total != 2 {
+		t.Fatalf("expected 2 top-level, got %d", total)
+	}
+
+	// Find epic and verify children nested
+	beads := result["beads"].([]any)
+	for _, raw := range beads {
+		b := raw.(map[string]any)
+		if b["id"] == epic.ID {
+			if b["is_epic"] != true {
+				t.Error("expected is_epic=true")
+			}
+			children, ok := b["children"].([]any)
+			if !ok {
+				t.Fatal("expected children array")
+			}
+			if len(children) != 2 {
+				t.Errorf("expected 2 children, got %d", len(children))
+			}
+			return
+		}
+	}
+	t.Error("epic not found in results")
+}
+
+func TestList_ReadyWithEpicContext(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	// Create epic with a child
+	out := runCmd(t, "add", "Ready Epic")
+	epic := parseBeadFromOutput(t, out)
+	runCmd(t, "add", "Ready child", "--parent", epic.ID)
+
+	out = runCmd(t, "list", "--ready")
+	var result store.ListResult
+	json.Unmarshal([]byte(out), &result)
+
+	// Should show child only (not the epic)
+	if result.Total != 1 {
+		t.Fatalf("expected 1 ready child, got %d", result.Total)
+	}
+	if result.Beads[0].ParentID != epic.ID {
+		t.Errorf("expected parent_id %s, got %s", epic.ID, result.Beads[0].ParentID)
+	}
+	if result.Beads[0].ParentTitle != "Ready Epic" {
+		t.Errorf("expected parent_title 'Ready Epic', got %q", result.Beads[0].ParentTitle)
+	}
+}
+
+func TestMine_ExcludesEpics(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+	os.Setenv("BS_USER", "agent-42")
+	t.Cleanup(func() { os.Unsetenv("BS_USER") })
+
+	// Create epic with a child, claim the child
+	out := runCmd(t, "add", "Epic for mine test")
+	epic := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Child task", "--parent", epic.ID)
+	child := parseBeadFromOutput(t, out)
+	runCmd(t, "claim", child.ID)
+
+	out = runCmd(t, "mine")
+	var result store.ListResult
+	json.Unmarshal([]byte(out), &result)
+
+	if result.Total != 1 {
+		t.Fatalf("expected 1 mine result, got %d", result.Total)
+	}
+	if result.Beads[0].ID != child.ID {
+		t.Errorf("expected child %s, got %s", child.ID, result.Beads[0].ID)
+	}
+	// Verify parent context is included
+	if result.Beads[0].ParentTitle != "Epic for mine test" {
+		t.Errorf("expected parent_title 'Epic for mine test', got %q", result.Beads[0].ParentTitle)
+	}
+}
+
+func TestSearch_WithEpicContext(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	// Create epic and child
+	out := runCmd(t, "add", "Auth Epic")
+	epic := parseBeadFromOutput(t, out)
+
+	runCmd(t, "add", "Fix login bug", "--parent", epic.ID)
+
+	// Search for child
+	out = runCmd(t, "search", "login")
+	var result store.ListResult
+	json.Unmarshal([]byte(out), &result)
+
+	if result.Total != 1 {
+		t.Fatalf("expected 1 search result, got %d", result.Total)
+	}
+	if result.Beads[0].ParentID != epic.ID {
+		t.Errorf("expected parent_id %s, got %s", epic.ID, result.Beads[0].ParentID)
+	}
+	if result.Beads[0].ParentTitle != "Auth Epic" {
+		t.Errorf("expected parent_title 'Auth Epic', got %q", result.Beads[0].ParentTitle)
+	}
+
+	// Search for epic — should show is_epic
+	out = runCmd(t, "search", "Auth")
+	json.Unmarshal([]byte(out), &result)
+
+	if result.Total != 1 {
+		t.Fatalf("expected 1 result, got %d", result.Total)
+	}
+	if !result.Beads[0].IsEpic {
+		t.Error("expected is_epic=true in search result")
+	}
+}
+
 func TestComment(t *testing.T) {
 	ts := startTestServer(t)
 	setClientEnv(t, ts.URL)

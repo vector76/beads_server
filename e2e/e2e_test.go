@@ -547,6 +547,86 @@ func TestEpicLifecycle(t *testing.T) {
 	}
 }
 
+// TestEpicQueryPaths exercises the epic-aware read paths: search with parent context,
+// list --ready with inherited blockers, and mine with parent context.
+func TestEpicQueryPaths(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "query-agent")
+
+	// Create an epic with children
+	out := run(t, "add", "Auth Rewrite Epic", "--type", "feature")
+	epic := parseBead(t, out)
+
+	out = run(t, "add", "Fix login bug", "--parent", epic.ID)
+	child1 := parseBead(t, out)
+
+	out = run(t, "add", "Add token refresh", "--parent", epic.ID)
+	child2 := parseBead(t, out)
+
+	// 1. Search for child — should include parent context
+	out = run(t, "search", "login")
+	searchResult := parseListResult(t, out)
+	if searchResult.Total != 1 {
+		t.Fatalf("search: expected 1 result, got %d", searchResult.Total)
+	}
+	if searchResult.Beads[0].ParentID != epic.ID {
+		t.Errorf("search: expected parent_id %s, got %s", epic.ID, searchResult.Beads[0].ParentID)
+	}
+	if searchResult.Beads[0].ParentTitle != "Auth Rewrite Epic" {
+		t.Errorf("search: expected parent_title 'Auth Rewrite Epic', got %q", searchResult.Beads[0].ParentTitle)
+	}
+
+	// 2. Search for epic — should show is_epic flag
+	out = run(t, "search", "Auth Rewrite")
+	searchResult = parseListResult(t, out)
+	if searchResult.Total != 1 {
+		t.Fatalf("search epic: expected 1 result, got %d", searchResult.Total)
+	}
+	if !searchResult.Beads[0].IsEpic {
+		t.Error("search epic: expected is_epic=true")
+	}
+
+	// 3. List --ready with inherited blockers
+	// Create a blocker and block the epic
+	out = run(t, "add", "External blocker")
+	blocker := parseBead(t, out)
+	run(t, "link", epic.ID, "--blocked-by", blocker.ID)
+
+	// Children should not be ready since parent epic is blocked
+	out = run(t, "list", "--ready")
+	readyResult := parseListResult(t, out)
+	for _, b := range readyResult.Beads {
+		if b.ID == child1.ID || b.ID == child2.ID {
+			t.Errorf("child %s should not be ready while parent epic is blocked", b.ID)
+		}
+	}
+
+	// Close the blocker — children should become ready
+	run(t, "close", blocker.ID)
+
+	out = run(t, "list", "--ready")
+	readyResult = parseListResult(t, out)
+	if readyResult.Total != 2 {
+		t.Fatalf("after unblocking: expected 2 ready children, got %d", readyResult.Total)
+	}
+
+	// 4. Mine with parent context
+	run(t, "claim", child1.ID)
+	out = run(t, "mine")
+	mineResult := parseListResult(t, out)
+	if mineResult.Total != 1 {
+		t.Fatalf("mine: expected 1, got %d", mineResult.Total)
+	}
+	if mineResult.Beads[0].ID != child1.ID {
+		t.Errorf("mine: expected child %s, got %s", child1.ID, mineResult.Beads[0].ID)
+	}
+	if mineResult.Beads[0].ParentTitle != "Auth Rewrite Epic" {
+		t.Errorf("mine: expected parent_title 'Auth Rewrite Epic', got %q", mineResult.Beads[0].ParentTitle)
+	}
+
+	_ = child2
+}
+
 // TestDependencyChain tests creating a dependency chain, resolving blockers,
 // and verifying the unblocked computation.
 func TestDependencyChain(t *testing.T) {

@@ -413,6 +413,66 @@ func TestMove_BothFlagsRejected(t *testing.T) {
 	}
 }
 
+func TestShow_EpicDetail(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	// Create a parent and child
+	out := runCmd(t, "add", "My Epic")
+	epic := parseBeadFromOutput(t, out)
+
+	runCmd(t, "add", "Child one", "--parent", epic.ID)
+	runCmd(t, "add", "Child two", "--parent", epic.ID)
+
+	// Show the epic — should have is_epic, progress, children
+	out = runCmd(t, "show", epic.ID)
+	var detail map[string]any
+	json.Unmarshal([]byte(out), &detail)
+
+	if detail["is_epic"] != true {
+		t.Errorf("expected is_epic=true, got %v", detail["is_epic"])
+	}
+
+	progress, ok := detail["progress"].(map[string]any)
+	if !ok {
+		t.Fatal("expected progress object")
+	}
+	if progress["total"] != float64(2) {
+		t.Errorf("expected progress.total=2, got %v", progress["total"])
+	}
+
+	children, ok := detail["children"].([]any)
+	if !ok {
+		t.Fatal("expected children array")
+	}
+	if len(children) != 2 {
+		t.Errorf("expected 2 children, got %d", len(children))
+	}
+}
+
+func TestShow_ChildDetail(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "add", "Parent Epic")
+	epic := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Child task", "--parent", epic.ID)
+	child := parseBeadFromOutput(t, out)
+
+	// Show the child — should have parent_id and parent_title
+	out = runCmd(t, "show", child.ID)
+	var detail map[string]any
+	json.Unmarshal([]byte(out), &detail)
+
+	if detail["parent_id"] != epic.ID {
+		t.Errorf("expected parent_id %s, got %v", epic.ID, detail["parent_id"])
+	}
+	if detail["parent_title"] != "Parent Epic" {
+		t.Errorf("expected parent_title 'Parent Epic', got %v", detail["parent_title"])
+	}
+}
+
 func TestDelete_NotFound(t *testing.T) {
 	ts := startTestServer(t)
 	setClientEnv(t, ts.URL)

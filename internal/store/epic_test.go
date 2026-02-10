@@ -848,6 +848,112 @@ func TestEpicPersistence(t *testing.T) {
 	}
 }
 
+// --- Filtering applies to top-level only ---
+
+func TestListHierarchical_FilterAppliesToTopLevelOnly(t *testing.T) {
+	s := tempStore(t)
+
+	// Create a feature epic with a bug child
+	featureType := model.TypeFeature
+	epic := createBead(t, s, "Feature Epic")
+	s.Update(epic.ID, UpdateFields{Type: &featureType})
+
+	bugType := model.TypeBug
+	child := model.NewBead("Bug child")
+	child.Type = model.TypeBug
+	s.CreateWithParent(child, epic.ID)
+
+	// Create a standalone bug
+	standaloneBug := createBead(t, s, "Standalone bug")
+	s.Update(standaloneBug.ID, UpdateFields{Type: &bugType})
+
+	// Filter by type=bug: should return only the standalone bug, not the feature epic
+	result := s.List(ListFilters{Type: &bugType})
+	if result.Total != 1 {
+		t.Fatalf("expected 1 top-level bug, got %d", result.Total)
+	}
+	if result.Beads[0].ID != standaloneBug.ID {
+		t.Errorf("expected standalone bug %s, got %s", standaloneBug.ID, result.Beads[0].ID)
+	}
+}
+
+func TestListHierarchical_FilterByTagTopLevelOnly(t *testing.T) {
+	s := tempStore(t)
+
+	// Create epic with tag "backend"
+	epic := createBead(t, s, "Backend Epic")
+	tags := []string{"backend"}
+	s.Update(epic.ID, UpdateFields{Tags: &tags})
+
+	// Create child with tag "frontend"
+	child := model.NewBead("Frontend child")
+	child.Tags = []string{"frontend"}
+	s.CreateWithParent(child, epic.ID)
+
+	// Filter by tag=frontend: should return 0 (child has the tag, not a top-level item)
+	result := s.List(ListFilters{Tags: []string{"frontend"}})
+	if result.Total != 0 {
+		t.Errorf("expected 0 top-level with 'frontend' tag, got %d", result.Total)
+	}
+
+	// Filter by tag=backend: should return the epic with its child nested
+	result = s.List(ListFilters{Tags: []string{"backend"}})
+	if result.Total != 1 {
+		t.Fatalf("expected 1 top-level with 'backend' tag, got %d", result.Total)
+	}
+	if !result.Beads[0].IsEpic {
+		t.Error("expected is_epic=true")
+	}
+	if len(result.Beads[0].Children) != 1 {
+		t.Errorf("expected 1 child nested under epic, got %d", len(result.Beads[0].Children))
+	}
+}
+
+func TestListHierarchical_FilterByAssigneeTopLevelOnly(t *testing.T) {
+	s := tempStore(t)
+
+	// Note: when assignee filter is set, it triggers flat mode.
+	// This test verifies that flat mode with assignee correctly
+	// excludes epics and shows only leaf beads.
+	epic := createBead(t, s, "Epic")
+	child := model.NewBead("Child task")
+	created, _ := s.CreateWithParent(child, epic.ID)
+
+	// Claim the child
+	alice := "alice"
+	inProg := model.StatusInProgress
+	s.Update(created.ID, UpdateFields{Assignee: &alice, Status: &inProg})
+
+	result := s.List(ListFilters{Assignee: &alice})
+	if result.Total != 1 {
+		t.Fatalf("expected 1 result for assignee filter, got %d", result.Total)
+	}
+	if result.Beads[0].ParentID != epic.ID {
+		t.Errorf("expected parent_id %s, got %s", epic.ID, result.Beads[0].ParentID)
+	}
+}
+
+// --- Mine excludes epics ---
+
+func TestListFlat_MineExcludesEpics(t *testing.T) {
+	s := tempStore(t)
+	epic := createBead(t, s, "Epic")
+	s.CreateWithParent(model.NewBead("Child"), epic.ID)
+
+	// Even if an epic somehow had an assignee and in_progress status,
+	// the flat list mode should exclude it because it has children.
+	alice := "alice"
+	inProg := model.StatusInProgress
+	s.Update(epic.ID, UpdateFields{Assignee: &alice, Status: &inProg})
+
+	result := s.List(ListFilters{Assignee: &alice})
+	for _, b := range result.Beads {
+		if b.ID == epic.ID {
+			t.Error("epic should not appear in assignee-filtered (mine) results")
+		}
+	}
+}
+
 // --- Search with epics ---
 
 func TestSearch_IncludesParentContext(t *testing.T) {

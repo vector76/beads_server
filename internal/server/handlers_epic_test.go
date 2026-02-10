@@ -543,6 +543,149 @@ func TestListBeads_HierarchicalView(t *testing.T) {
 	t.Error("epic not found in results")
 }
 
+// --- List --ready via API ---
+
+func TestListBeads_ReadyExcludesEpicsShowsChildContext(t *testing.T) {
+	srv := crudServer(t)
+	epic := createViaAPI(t, srv, map[string]any{"title": "Epic"})
+
+	// Create a child
+	req := authReq(http.MethodPost, "/api/v1/beads", map[string]any{
+		"title":     "Ready child",
+		"parent_id": epic.ID,
+	})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusCreated {
+		t.Fatalf("create child: expected 201, got %d", w.Code)
+	}
+
+	// List --ready
+	req = authReq(http.MethodGet, "/api/v1/beads?ready=true", nil)
+	w = httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+
+	total := int(result["total"].(float64))
+	if total != 1 {
+		t.Fatalf("expected total=1 (child only), got %d", total)
+	}
+
+	beads := result["beads"].([]any)
+	child := beads[0].(map[string]any)
+	if child["parent_id"] != epic.ID {
+		t.Errorf("expected parent_id %s, got %v", epic.ID, child["parent_id"])
+	}
+	if child["parent_title"] != "Epic" {
+		t.Errorf("expected parent_title 'Epic', got %v", child["parent_title"])
+	}
+}
+
+func TestListBeads_FilterByTypeTopLevelOnly(t *testing.T) {
+	srv := crudServer(t)
+	// Create a feature epic
+	epic := createViaAPI(t, srv, map[string]any{"title": "Feature Epic", "type": "feature"})
+
+	// Create a bug child
+	req := authReq(http.MethodPost, "/api/v1/beads", map[string]any{
+		"title":     "Bug child",
+		"type":      "bug",
+		"parent_id": epic.ID,
+	})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	// Create standalone bug
+	createViaAPI(t, srv, map[string]any{"title": "Standalone bug", "type": "bug"})
+
+	// List type=bug should only show standalone bug, not the feature epic
+	req = authReq(http.MethodGet, "/api/v1/beads?type=bug", nil)
+	w = httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+
+	total := int(result["total"].(float64))
+	if total != 1 {
+		t.Fatalf("expected total=1 (standalone bug only), got %d", total)
+	}
+
+	beads := result["beads"].([]any)
+	b := beads[0].(map[string]any)
+	if b["title"] != "Standalone bug" {
+		t.Errorf("expected 'Standalone bug', got %v", b["title"])
+	}
+}
+
+// --- Search via API with epic context ---
+
+func TestSearch_ReturnsParentContext(t *testing.T) {
+	srv := crudServer(t)
+	epic := createViaAPI(t, srv, map[string]any{"title": "Auth Epic"})
+
+	req := authReq(http.MethodPost, "/api/v1/beads", map[string]any{
+		"title":     "Fix login bug",
+		"parent_id": epic.ID,
+	})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	// Search for "login"
+	req = authReq(http.MethodGet, "/api/v1/search?q=login", nil)
+	w = httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+
+	total := int(result["total"].(float64))
+	if total != 1 {
+		t.Fatalf("expected total=1, got %d", total)
+	}
+
+	beads := result["beads"].([]any)
+	b := beads[0].(map[string]any)
+	if b["parent_id"] != epic.ID {
+		t.Errorf("expected parent_id %s, got %v", epic.ID, b["parent_id"])
+	}
+	if b["parent_title"] != "Auth Epic" {
+		t.Errorf("expected parent_title 'Auth Epic', got %v", b["parent_title"])
+	}
+}
+
+func TestSearch_EpicShowsIsEpicFlag(t *testing.T) {
+	srv := crudServer(t)
+	epic := createViaAPI(t, srv, map[string]any{"title": "Auth Rewrite"})
+
+	req := authReq(http.MethodPost, "/api/v1/beads", map[string]any{
+		"title":     "Subtask",
+		"parent_id": epic.ID,
+	})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	// Search for "Auth" should find the epic
+	req = authReq(http.MethodGet, "/api/v1/search?q=Auth", nil)
+	w = httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	var result map[string]any
+	json.NewDecoder(w.Body).Decode(&result)
+
+	beads := result["beads"].([]any)
+	if len(beads) != 1 {
+		t.Fatalf("expected 1 result, got %d", len(beads))
+	}
+
+	b := beads[0].(map[string]any)
+	if b["is_epic"] != true {
+		t.Errorf("expected is_epic=true in search result, got %v", b["is_epic"])
+	}
+}
+
 // --- Derived status through API ---
 
 func TestDerivedStatus_ClosingAllChildren(t *testing.T) {
