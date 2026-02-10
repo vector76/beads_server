@@ -6,3 +6,4 @@ TASK*.md
 /bs
 beads.json
 build/
+.env

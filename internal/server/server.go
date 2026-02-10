@@ -60,6 +60,7 @@ func New(cfg Config, p StoreProvider) (*Server, error) {
 
 	// Unauthenticated endpoints
 	srv.Router.Get("/", srv.handleDashboard)
+	srv.Router.Get("/bead/{project}/{id}", srv.handleBeadDetail)
 	srv.Router.Get("/api/v1/health", srv.handleHealth)
 
 	// All other API routes require auth

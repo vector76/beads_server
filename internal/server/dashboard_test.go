@@ -202,3 +202,162 @@ func TestDashboardSortOrderClosed(t *testing.T) {
 		t.Errorf("expected %q (newer) before %q (older) in Closed section", b2.Title, b1.Title)
 	}
 }
+
+func TestBeadDetailRendersFields(t *testing.T) {
+	srv := crudServer(t)
+
+	created := createViaAPI(t, srv, map[string]any{
+		"title":       "Detail test bead",
+		"description": "A detailed description\nwith multiple lines",
+		"status":      "open",
+		"priority":    "high",
+		"type":        "bug",
+		"assignee":    "alice",
+		"tags":        []string{"urgent", "backend"},
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	body := w.Body.String()
+
+	checks := []string{
+		created.ID,
+		"Detail test bead",
+		"A detailed description",
+		"with multiple lines",
+		"open",
+		"high",
+		"bug",
+		"alice",
+		"urgent",
+		"backend",
+		"Dashboard",
+	}
+	for _, want := range checks {
+		if !strings.Contains(body, want) {
+			t.Errorf("expected %q in detail page HTML", want)
+		}
+	}
+}
+
+func TestBeadDetailRendersComments(t *testing.T) {
+	srv := crudServer(t)
+
+	created := createViaAPI(t, srv, map[string]any{"title": "Comment test"})
+
+	// Add a comment via API
+	commentReq := authReq(http.MethodPost, "/api/v1/beads/"+created.ID+"/comments",
+		map[string]any{"author": "bob", "text": "This is a comment"})
+	cw := httptest.NewRecorder()
+	srv.Router.ServeHTTP(cw, commentReq)
+	if cw.Code != http.StatusCreated {
+		t.Fatalf("add comment: expected 201, got %d: %s", cw.Code, cw.Body.String())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "bob") {
+		t.Error("expected comment author 'bob' in detail page")
+	}
+	if !strings.Contains(body, "This is a comment") {
+		t.Error("expected comment text in detail page")
+	}
+}
+
+func TestBeadDetailRendersBlockers(t *testing.T) {
+	srv := crudServer(t)
+
+	blocker := createViaAPI(t, srv, map[string]any{"title": "Blocker bead", "status": "open"})
+	blocked := createViaAPI(t, srv, map[string]any{"title": "Blocked bead", "status": "open"})
+
+	// Link: blocked is blocked by blocker
+	linkReq := authReq(http.MethodPost, "/api/v1/beads/"+blocked.ID+"/link",
+		map[string]any{"blocked_by": blocker.ID})
+	lw := httptest.NewRecorder()
+	srv.Router.ServeHTTP(lw, linkReq)
+	if lw.Code != http.StatusOK {
+		t.Fatalf("link: expected 200, got %d: %s", lw.Code, lw.Body.String())
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+blocked.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "Blocker bead") {
+		t.Error("expected blocker title in detail page")
+	}
+	if !strings.Contains(body, blocker.ID) {
+		t.Error("expected blocker ID in detail page")
+	}
+	if !strings.Contains(body, "Blocked By (Active)") {
+		t.Error("expected 'Blocked By (Active)' section in detail page")
+	}
+}
+
+func TestBeadDetailNotFoundBead(t *testing.T) {
+	srv := crudServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/bd-nonexistent", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestBeadDetailNotFoundProject(t *testing.T) {
+	srv := crudServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/bead/nonexistent/bd-1234", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusNotFound {
+		t.Errorf("expected 404, got %d", w.Code)
+	}
+}
+
+func TestDashboardBeadIDsAreLinks(t *testing.T) {
+	srv := crudServer(t)
+
+	created := createViaAPI(t, srv, map[string]any{"title": "Link test", "status": "open"})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	expectedLink := `/bead/default/` + created.ID
+	if !strings.Contains(body, expectedLink) {
+		t.Errorf("expected link %q in dashboard HTML, got:\n%s", expectedLink, body)
+	}
+}
+
+func TestBeadDetailUsesTimeElements(t *testing.T) {
+	srv := crudServer(t)
+
+	created := createViaAPI(t, srv, map[string]any{"title": "Time element test", "status": "open"})
+
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	body := w.Body.String()
+
+	utcTime := created.UpdatedAt.UTC().Format(time.RFC3339)
+	expectedAttr := `datetime="` + utcTime + `"`
+	if !strings.Contains(body, expectedAttr) {
+		t.Errorf("expected datetime attribute %q in detail page HTML", expectedAttr)
+	}
+}

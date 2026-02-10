@@ -6,6 +6,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/yourorg/beads_server/internal/model"
 	"github.com/yourorg/beads_server/internal/store"
 )
@@ -53,6 +54,51 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// beadDetailData holds the template data for the bead detail page.
+type beadDetailData struct {
+	Project          string
+	Bead             model.Bead
+	ActiveBlockers   []model.Bead
+	ResolvedBlockers []model.Bead
+}
+
+func (s *Server) handleBeadDetail(w http.ResponseWriter, r *http.Request) {
+	projectName := chi.URLParam(r, "project")
+	beadID := chi.URLParam(r, "id")
+
+	var st *store.Store
+	for _, p := range s.provider.Projects() {
+		if p.Name == projectName {
+			st = p.Store
+			break
+		}
+	}
+	if st == nil {
+		http.Error(w, "project not found", http.StatusNotFound)
+		return
+	}
+
+	b, err := st.Get(beadID)
+	if err != nil {
+		http.Error(w, "bead not found", http.StatusNotFound)
+		return
+	}
+
+	deps, _ := st.Deps(beadID)
+
+	data := beadDetailData{
+		Project:          projectName,
+		Bead:             b,
+		ActiveBlockers:   deps.ActiveBlockers,
+		ResolvedBlockers: deps.ResolvedBlockers,
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	if err := beadDetailTmpl.Execute(w, data); err != nil {
+		http.Error(w, "template error", http.StatusInternalServerError)
+	}
+}
+
 // sortByUpdatedDesc sorts beads by UpdatedAt descending (most recent first).
 func sortByUpdatedDesc(beads []store.BeadSummary) {
 	sort.Slice(beads, func(i, j int) bool {
@@ -86,7 +132,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 </head>
 <body>
 <h1>Beads Dashboard</h1>
-{{range .Projects}}
+{{range .Projects}}{{$proj := .Name}}
 <div class="section">
 <h2>{{.Name}}</h2>
 <div class="counts">
@@ -99,7 +145,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <h3>In Progress</h3>
 <table>
 <tr><th>ID</th><th>Title</th><th>Assignee</th><th>Priority</th><th>Updated</th></tr>
-{{range .InProgress}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Assignee}}</td><td>{{.Priority}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
+{{range .InProgress}}<tr><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Assignee}}</td><td>{{.Priority}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
 {{end}}</table>
 {{end}}
 
@@ -107,7 +153,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <h3>Open</h3>
 <table>
 <tr><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
-{{range .Open}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
+{{range .Open}}<tr><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
 {{end}}</table>
 {{end}}
 
@@ -115,12 +161,115 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <h3>Closed ({{len .Closed}})</h3>
 <table>
 <tr><th>ID</th><th>Title</th><th>Priority</th><th>Updated</th></tr>
-{{range .Closed}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
+{{range .Closed}}<tr><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
 {{end}}</table>
 {{end}}
 
 </div>
 {{end}}
+<script>
+document.querySelectorAll("time[datetime]").forEach(function(el) {
+  var d = new Date(el.getAttribute("datetime"));
+  if (isNaN(d)) return;
+  var pad = function(n) { return n < 10 ? "0" + n : "" + n; };
+  var formatted = d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()) +
+    " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  var tz = d.toLocaleTimeString(undefined, {timeZoneName: "short"}).split(" ").pop();
+  el.textContent = formatted + " " + tz;
+});
+</script>
+</body>
+</html>
+`))
+
+var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.FuncMap{
+	"fmtTime": func(t time.Time) template.HTML {
+		utc := t.UTC().Format(time.RFC3339)
+		display := t.UTC().Format("2006-01-02 15:04")
+		return template.HTML(`<time datetime="` + utc + `">` + display + `</time>`)
+	},
+}).Parse(`<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>{{.Bead.ID}} — {{.Bead.Title}}</title>
+<style>
+  body { font-family: sans-serif; margin: 2em; color: #222; }
+  a { color: #0366d6; text-decoration: none; }
+  a:hover { text-decoration: underline; }
+  h1 { margin-bottom: 0.2em; }
+  .back { margin-bottom: 1em; }
+  .meta { display: flex; gap: 1.5em; flex-wrap: wrap; margin-bottom: 1em; }
+  .meta div { padding: 0.4em 0.8em; border-radius: 4px; background: #f0f0f0; }
+  .description { white-space: pre-wrap; background: #fafafa; border: 1px solid #eee; padding: 1em; border-radius: 4px; margin-bottom: 1em; }
+  .tags span { display: inline-block; background: #e1ecf4; padding: 0.2em 0.6em; border-radius: 3px; margin-right: 0.4em; font-size: 0.9em; }
+  table { border-collapse: collapse; width: 100%; margin-bottom: 1em; }
+  th, td { text-align: left; padding: 0.35em 0.7em; border: 1px solid #ddd; }
+  th { background: #f5f5f5; }
+  .comment { border: 1px solid #eee; padding: 0.8em; margin-bottom: 0.5em; border-radius: 4px; }
+  .comment-meta { font-size: 0.85em; color: #666; margin-bottom: 0.3em; }
+  .comment-text { white-space: pre-wrap; }
+  .section { margin-bottom: 1.5em; }
+</style>
+</head>
+<body>
+<div class="back"><a href="/">&#8592; Dashboard</a></div>
+<h1>{{.Bead.Title}}</h1>
+<p style="color:#666; margin-top:0;">{{.Bead.ID}}</p>
+
+<div class="meta">
+  <div><strong>Status:</strong> {{.Bead.Status}}</div>
+  <div><strong>Priority:</strong> {{.Bead.Priority}}</div>
+  <div><strong>Type:</strong> {{.Bead.Type}}</div>
+  {{if .Bead.Assignee}}<div><strong>Assignee:</strong> {{.Bead.Assignee}}</div>{{end}}
+  <div><strong>Created:</strong> {{fmtTime .Bead.CreatedAt}}</div>
+  <div><strong>Updated:</strong> {{fmtTime .Bead.UpdatedAt}}</div>
+</div>
+
+{{if .Bead.Tags}}
+<div class="section">
+<h3>Tags</h3>
+<div class="tags">{{range .Bead.Tags}}<span>{{.}}</span>{{end}}</div>
+</div>
+{{end}}
+
+{{if .Bead.Description}}
+<div class="section">
+<h3>Description</h3>
+<div class="description">{{.Bead.Description}}</div>
+</div>
+{{end}}
+
+{{if .ActiveBlockers}}
+<div class="section">
+<h3>Blocked By (Active)</h3>
+<table>
+<tr><th>ID</th><th>Title</th><th>Status</th><th>Priority</th></tr>
+{{range .ActiveBlockers}}<tr><td><a href="/bead/{{$.Project}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Status}}</td><td>{{.Priority}}</td></tr>
+{{end}}</table>
+</div>
+{{end}}
+
+{{if .ResolvedBlockers}}
+<div class="section">
+<h3>Blocked By (Resolved)</h3>
+<table>
+<tr><th>ID</th><th>Title</th><th>Status</th><th>Priority</th></tr>
+{{range .ResolvedBlockers}}<tr><td><a href="/bead/{{$.Project}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Status}}</td><td>{{.Priority}}</td></tr>
+{{end}}</table>
+</div>
+{{end}}
+
+{{if .Bead.Comments}}
+<div class="section">
+<h3>Comments ({{len .Bead.Comments}})</h3>
+{{range .Bead.Comments}}<div class="comment">
+<div class="comment-meta"><strong>{{.Author}}</strong> &middot; {{fmtTime .CreatedAt}}</div>
+<div class="comment-text">{{.Text}}</div>
+</div>
+{{end}}</div>
+{{end}}
+
 <script>
 document.querySelectorAll("time[datetime]").forEach(function(el) {
   var d = new Date(el.getAttribute("datetime"));
