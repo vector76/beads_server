@@ -3,7 +3,6 @@ package cli
 import (
 	"fmt"
 	"net/url"
-	"os"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -130,10 +129,7 @@ func newClaimCmd() *cobra.Command {
 				return err
 			}
 
-			user := os.Getenv("BS_USER")
-			if user == "" {
-				user = "anonymous"
-			}
+			user := getUser()
 
 			body := map[string]any{
 				"user": user,
@@ -164,10 +160,7 @@ func newMineCmd() *cobra.Command {
 				return err
 			}
 
-			user := os.Getenv("BS_USER")
-			if user == "" {
-				user = "anonymous"
-			}
+			user := getUser()
 
 			params := url.Values{}
 			params.Set("assignee", user)
@@ -199,10 +192,7 @@ func newCommentCmd() *cobra.Command {
 				return err
 			}
 
-			user := os.Getenv("BS_USER")
-			if user == "" {
-				user = "anonymous"
-			}
+			user := getUser()
 
 			body := map[string]any{
 				"author": user,

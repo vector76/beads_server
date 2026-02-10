@@ -9,6 +9,8 @@ import (
 
 func TestWhoami_DefaultAnonymous(t *testing.T) {
 	os.Unsetenv("BS_USER")
+	resetDotenv()
+	t.Cleanup(resetDotenv)
 
 	cmd := NewRootCmd()
 	buf := new(bytes.Buffer)

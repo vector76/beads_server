@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 )
 
 const defaultURL = "http://localhost:9999"
@@ -18,15 +17,16 @@ type Client struct {
 	HTTPClient *http.Client
 }
 
-// NewClientFromEnv creates a Client from BS_URL and BS_TOKEN env vars.
-// Returns an error if BS_TOKEN is not set.
+// NewClientFromEnv creates a Client from BS_URL and BS_TOKEN.
+// Values are read from environment variables first, then from a .env
+// file in the current directory. Returns an error if BS_TOKEN is not set.
 func NewClientFromEnv() (*Client, error) {
-	token := os.Getenv("BS_TOKEN")
+	token := getenv("BS_TOKEN")
 	if token == "" {
 		return nil, fmt.Errorf("BS_TOKEN is required")
 	}
 
-	baseURL := os.Getenv("BS_URL")
+	baseURL := getenv("BS_URL")
 	if baseURL == "" {
 		baseURL = defaultURL
 	}
