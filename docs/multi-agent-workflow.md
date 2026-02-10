@@ -72,7 +72,7 @@ bs add "Design API schema" --type task --priority high    # → bd-a1b2c3d4
 bs add "Implement API endpoints" --type task              # → bd-e5f6g7h8
 bs add "Write integration tests" --type task              # → bd-m9n8o7p6
 
-# express ordering (using the generated IDs, or any unambiguous prefix)
+# express ordering (using the generated IDs)
 bs link bd-e5f6g7h8 --blocked-by bd-a1b2c3d4   # impl waits for design
 bs link bd-m9n8o7p6 --blocked-by bd-e5f6g7h8   # tests wait for impl
 ```

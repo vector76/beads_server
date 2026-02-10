@@ -62,7 +62,7 @@ bs <command>                 # CLI client mode (talks to the server)
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `id` | String | Fixed prefix `bd-` + 8-char random lowercase alphanumeric (e.g. `bd-a1b2c3d4`) |
+| `id` | String | Fixed prefix `bd-` + 4–8 char random lowercase alphanumeric (e.g. `bd-a1b2`). Default 4 chars, escalates on collision |
 | `title` | String | One-line summary (required) |
 | `description` | String | Longer body text (optional, default empty) |
 | `status` | Enum | `open`, `in_progress`, `closed`, `deleted` |
@@ -221,10 +221,10 @@ All errors return a JSON object: `{"error": "description of what went wrong"}` w
 ## Behavior Details
 
 ### ID Format
-- All bead IDs use the format `bd-<8 lowercase alphanumeric chars>` (e.g. `bd-a1b2c3d4`)
+- All bead IDs use the format `bd-<4–8 lowercase alphanumeric chars>` (e.g. `bd-a1b2`)
+- Default random portion is 4 characters. On collision during generation, length escalates (4→5→6→7→8, 3 retries per length)
 - The `bd-` prefix is fixed and serves to disambiguate bead IDs from other tokens
-- IDs can be referenced by unique prefix (e.g., `bd-a1b` if unambiguous). The CLI sends whatever the user provides; the server resolves it. If ambiguous, the server returns an error listing the matching IDs
-- The `bd-` prefix itself can be omitted on the CLI for convenience — `bs show a1b2c3d4` is equivalent to `bs show bd-a1b2c3d4`. The server accepts both forms
+- IDs must be specified exactly and in full, including the `bd-` prefix
 
 ### Soft Delete
 - `delete` sets the bead's status to `deleted`. The bead remains in the data file

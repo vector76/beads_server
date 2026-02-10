@@ -23,9 +23,9 @@ model  <--  store  <--  server  <--  cli
 
 ## Package Responsibilities
 
-**`internal/model`** — Pure data types. Defines the `Bead` struct, `Comment` struct, and enums (`Status`, `Priority`, `BeadType`). Handles ID generation (`bd-` + 8 random alphanumeric chars) and JSON validation for enum types. No I/O, no state.
+**`internal/model`** — Pure data types. Defines the `Bead` struct, `Comment` struct, and enums (`Status`, `Priority`, `BeadType`). Provides ID generation helpers (`bd-` + 4–8 random alphanumeric chars) and JSON validation for enum types. No I/O, no state.
 
-**`internal/store`** — The persistence and business logic layer. Holds all beads in a `map[string]model.Bead` protected by a `sync.RWMutex`. Provides CRUD, ID prefix resolution, list/filter/sort/paginate, search, claim, comments, and dependency management (link/unlink/deps with cycle detection). Every mutation writes to disk atomically.
+**`internal/store`** — The persistence and business logic layer. Holds all beads in a `map[string]model.Bead` protected by a `sync.RWMutex`. Provides CRUD with collision-aware ID generation, exact ID resolution, list/filter/sort/paginate, search, claim, comments, and dependency management (link/unlink/deps with cycle detection). Every mutation writes to disk atomically.
 
 **`internal/server`** — HTTP layer. Creates a chi router with bearer token auth middleware. Maps REST endpoints to store operations. Translates between HTTP request/response formats and store types. No business logic beyond request parsing and response formatting.
 
@@ -41,7 +41,7 @@ CLI (cobra command)
     → HTTP request with Authorization: Bearer <token>
       → server.authMiddleware (validates token)
         → server.handleClaimBead (parses request, resolves ID)
-          → store.Resolve("bd-a1b2") (prefix match)
+          → store.Resolve("bd-a1b2") (exact match)
           → store.Claim(fullID, "agent-1") (acquires mutex, checks conflicts, updates state)
             → store.save() (marshal JSON, write temp file, rename)
           ← returns updated bead
@@ -83,7 +83,7 @@ Tests are organized in four layers, matching the package structure:
 
 **Unit tests (`internal/model/`)** — Validate JSON serialization round-trips, enum validation, ID format, and default values. Fast, no I/O.
 
-**Store tests (`internal/store/`)** — Test all store operations against a real temp file. Cover CRUD, prefix resolution, filtering, pagination, search, claim semantics (idempotent, conflict, terminal state), dependency operations (link, unlink, cycle detection), and unblocked computation. Four test files mirror the four source files (`store_test.go`, `list_test.go`, `ops_test.go`, `deps_test.go`).
+**Store tests (`internal/store/`)** — Test all store operations against a real temp file. Cover CRUD, collision-aware ID generation, exact ID resolution, filtering, pagination, search, claim semantics (idempotent, conflict, terminal state), dependency operations (link, unlink, cycle detection), and unblocked computation. Four test files mirror the four source files (`store_test.go`, `list_test.go`, `ops_test.go`, `deps_test.go`).
 
 **Server tests (`internal/server/`)** — Use `httptest.NewServer` with a real store (temp file). Test each HTTP handler: request parsing, response format, status codes, auth middleware. Four test files mirror the four source files (`server_test.go`, `handlers_test.go`, `handlers_query_test.go`, `handlers_deps_test.go`).
 
@@ -111,6 +111,6 @@ go test ./e2e/...
 
 **Single JSON file for storage.** A database would add deployment complexity for zero throughput benefit. Issue trackers have low write rates. The JSON file is human-inspectable, trivially backupable, and requires no setup. Atomic writes (temp file + rename) prevent corruption.
 
-**ID prefix resolution.** Bead IDs are `bd-` + 8 random chars, but users can refer to them by any unambiguous prefix. The server resolves `bd-a1b` to the full ID, or returns an error listing matches if ambiguous. The `bd-` prefix can be omitted on the CLI. This balances uniqueness with usability.
+**Short IDs with exact matching.** Bead IDs are `bd-` + 4–8 random chars (default 4). IDs are generated at the store layer with collision detection: on collision, the length escalates from 4 up to 8 with retries at each level. IDs must be specified exactly and in full (including the `bd-` prefix). The short default length keeps IDs easy to type while the escalation ensures uniqueness at scale.
 
 **Soft delete.** `delete` sets status to `deleted` rather than removing the bead. This preserves history and enables recovery via `reopen`. Deleted beads are excluded from default queries but visible with `--all` or `--status deleted`.

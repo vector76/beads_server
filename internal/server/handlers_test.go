@@ -174,25 +174,18 @@ func TestGetBead_NotFound(t *testing.T) {
 	}
 }
 
-func TestGetBead_ByPrefix(t *testing.T) {
+func TestGetBead_ByPrefixFails(t *testing.T) {
 	srv := crudServer(t)
 	created := createViaAPI(t, srv, map[string]any{"title": "Prefix test"})
 
-	// Use first 6 chars of ID (after "bd-") as prefix
+	// Prefix should NOT match — exact ID required
 	prefix := created.ID[:6] // "bd-" + 3 chars
 	req := authReq(http.MethodGet, "/api/v1/beads/"+prefix, nil)
 	w := httptest.NewRecorder()
 	srv.Router.ServeHTTP(w, req)
 
-	if w.Code != http.StatusOK {
-		t.Fatalf("expected 200 for prefix match, got %d: %s", w.Code, w.Body.String())
-	}
-
-	var b model.Bead
-	json.NewDecoder(w.Body).Decode(&b)
-
-	if b.ID != created.ID {
-		t.Fatalf("prefix resolve mismatch: got %s, want %s", b.ID, created.ID)
+	if w.Code != http.StatusNotFound {
+		t.Fatalf("expected 404 for prefix match, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

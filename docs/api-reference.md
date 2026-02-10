@@ -79,11 +79,11 @@ Only `title` is required. All other fields use defaults if omitted (see [Data Mo
 GET /api/v1/beads/:id
 ```
 
-Accepts full IDs (`bd-a1b2c3d4`) or unambiguous prefixes (`bd-a1b` or `a1b`).
+Requires the exact full ID (e.g., `bd-a1b2`). The `bd-` prefix is required.
 
 **Response** `200`: Full bead object (same format as create response).
 
-**Errors:** `404` if not found. `400` if prefix is ambiguous (error message lists matching IDs).
+**Errors:** `404` if not found.
 
 ---
 
@@ -132,7 +132,7 @@ When a status change to a terminal state (`closed`, `deleted`) unblocks other be
 }
 ```
 
-**Errors:** `404` if not found. `400` for invalid fields or ambiguous prefix.
+**Errors:** `404` if not found. `400` for invalid fields.
 
 ---
 
@@ -146,7 +146,7 @@ Soft-deletes the bead (sets status to `deleted`). The bead remains in storage an
 
 **Response** `200`: Deleted bead object (with status `deleted`). Includes `unblocked` field if this bead was blocking others.
 
-**Errors:** `404` if not found. `400` for ambiguous prefix.
+**Errors:** `404` if not found.
 
 ---
 
@@ -388,7 +388,7 @@ All errors return:
 
 | Status Code | Meaning |
 |-------------|---------|
-| `400` | Bad request (missing fields, invalid values, ambiguous ID prefix) |
+| `400` | Bad request (missing fields, invalid values) |
 | `401` | Missing or invalid bearer token |
 | `404` | Bead not found |
 | `409` | Conflict (claim rejected) |

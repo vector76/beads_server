@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -28,8 +29,9 @@ func TestLoadMissingFileCreatesEmptyStore(t *testing.T) {
 func TestLoadExistingFile(t *testing.T) {
 	path := tempPath(t)
 
-	// Write a valid data file
+	// Write a valid data file with an explicit ID
 	b := model.NewBead("Existing bead")
+	b.ID = "bd-exist01"
 	fd := fileData{Beads: []model.Bead{b}}
 	data, _ := json.MarshalIndent(fd, "", "  ")
 	if err := os.WriteFile(path, data, 0644); err != nil {
@@ -44,7 +46,7 @@ func TestLoadExistingFile(t *testing.T) {
 		t.Fatalf("expected 1 bead, got %d", len(s.All()))
 	}
 
-	got, err := s.Get(b.ID)
+	got, err := s.Get("bd-exist01")
 	if err != nil {
 		t.Fatalf("unexpected error getting bead: %v", err)
 	}
@@ -76,11 +78,11 @@ func TestCreateAndGet(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error creating bead: %v", err)
 	}
-	if created.ID != b.ID {
-		t.Errorf("expected ID %q, got %q", b.ID, created.ID)
+	if created.ID == "" {
+		t.Fatal("expected non-empty ID after Create")
 	}
 
-	got, err := s.Get(b.ID)
+	got, err := s.Get(created.ID)
 	if err != nil {
 		t.Fatalf("unexpected error getting bead: %v", err)
 	}
@@ -96,11 +98,14 @@ func TestCreateDuplicateIDReturnsError(t *testing.T) {
 	}
 
 	b := model.NewBead("First")
+	b.ID = "bd-dup00001"
 	if _, err := s.Create(b); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	_, err = s.Create(b)
+	b2 := model.NewBead("Second")
+	b2.ID = "bd-dup00001"
+	_, err = s.Create(b2)
 	if err == nil {
 		t.Error("expected error creating duplicate bead")
 	}
@@ -125,13 +130,14 @@ func TestUpdate(t *testing.T) {
 	}
 
 	b := model.NewBead("Original title")
-	if _, err := s.Create(b); err != nil {
+	created, err := s.Create(b)
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
 	newTitle := "Updated title"
 	newPriority := model.PriorityHigh
-	updated, err := s.Update(b.ID, UpdateFields{
+	updated, err := s.Update(created.ID, UpdateFields{
 		Title:    &newTitle,
 		Priority: &newPriority,
 	})
@@ -150,7 +156,7 @@ func TestUpdate(t *testing.T) {
 		t.Errorf("expected status 'open', got %q", updated.Status)
 	}
 	// UpdatedAt should be after CreatedAt
-	if !updated.UpdatedAt.After(b.CreatedAt) || updated.UpdatedAt.Equal(b.CreatedAt) {
+	if !updated.UpdatedAt.After(created.CreatedAt) || updated.UpdatedAt.Equal(created.CreatedAt) {
 		t.Error("expected updated_at to be after created_at")
 	}
 }
@@ -174,12 +180,12 @@ func TestDeleteSoftDeletes(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	b := model.NewBead("To delete")
-	if _, err := s.Create(b); err != nil {
+	created, err := s.Create(model.NewBead("To delete"))
+	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	deleted, err := s.Delete(b.ID)
+	deleted, err := s.Delete(created.ID)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -188,7 +194,7 @@ func TestDeleteSoftDeletes(t *testing.T) {
 	}
 
 	// Should still be retrievable
-	got, err := s.Get(b.ID)
+	got, err := s.Get(created.ID)
 	if err != nil {
 		t.Fatalf("unexpected error getting deleted bead: %v", err)
 	}
@@ -224,10 +230,12 @@ func TestCRUDCycle(t *testing.T) {
 	}
 
 	// Create
-	b := model.NewBead("CRUD test")
-	created, err := s.Create(b)
+	created, err := s.Create(model.NewBead("CRUD test"))
 	if err != nil {
 		t.Fatalf("create failed: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("expected non-empty ID")
 	}
 
 	// Read
@@ -301,71 +309,89 @@ func TestResolveExactMatch(t *testing.T) {
 	}
 }
 
-func TestResolveUniquePrefixMatch(t *testing.T) {
-	s, _ := Load(tempPath(t))
-	createBeadWithID(t, s, "bd-a1b2c3d4", "First")
-	createBeadWithID(t, s, "bd-x9y8z7w6", "Second")
-
-	got, err := s.Resolve("bd-a1b")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.Title != "First" {
-		t.Errorf("expected title 'First', got %q", got.Title)
-	}
-}
-
-func TestResolveAmbiguousPrefix(t *testing.T) {
-	s, _ := Load(tempPath(t))
-	createBeadWithID(t, s, "bd-a1b2c3d4", "First")
-	createBeadWithID(t, s, "bd-a1b2xxxx", "Second")
-
-	_, err := s.Resolve("bd-a1b2")
-	if err == nil {
-		t.Fatal("expected error for ambiguous prefix")
-	}
-	if !strings.Contains(err.Error(), "ambiguous") {
-		t.Errorf("expected 'ambiguous' in error, got %q", err.Error())
-	}
-	// Error should list matching IDs
-	if !strings.Contains(err.Error(), "bd-a1b2c3d4") || !strings.Contains(err.Error(), "bd-a1b2xxxx") {
-		t.Errorf("expected matching IDs in error, got %q", err.Error())
-	}
-}
-
 func TestResolveNotFound(t *testing.T) {
 	s, _ := Load(tempPath(t))
 	createBeadWithID(t, s, "bd-a1b2c3d4", "Exists")
 
-	_, err := s.Resolve("bd-zzz")
+	_, err := s.Resolve("bd-nonexist")
 	if err == nil {
-		t.Fatal("expected error for non-existent prefix")
+		t.Fatal("expected error for non-existent ID")
 	}
 	if !strings.Contains(err.Error(), "not found") {
 		t.Errorf("expected 'not found' in error, got %q", err.Error())
 	}
 }
 
-func TestResolveWithoutBdPrefix(t *testing.T) {
+func TestResolveRequiresExactID(t *testing.T) {
 	s, _ := Load(tempPath(t))
-	createBeadWithID(t, s, "bd-a1b2c3d4", "No prefix")
+	createBeadWithID(t, s, "bd-a1b2c3d4", "Full ID only")
 
-	// Exact match without bd- prefix
-	got, err := s.Resolve("a1b2c3d4")
+	// Prefix should NOT match
+	_, err := s.Resolve("bd-a1b2")
+	if err == nil {
+		t.Fatal("expected error: prefix matching should not work")
+	}
+
+	// Without bd- prefix should NOT match
+	_, err = s.Resolve("a1b2c3d4")
+	if err == nil {
+		t.Fatal("expected error: missing bd- prefix should not auto-prepend")
+	}
+}
+
+// --- ID generation tests ---
+
+func TestCreateAssignsID(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	b := model.NewBead("Auto ID")
+	created, err := s.Create(b)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.Title != "No prefix" {
-		t.Errorf("expected title 'No prefix', got %q", got.Title)
+	if created.ID == "" {
+		t.Fatal("expected non-empty ID after Create")
 	}
+	matched, _ := regexp.MatchString(`^bd-[a-z0-9]{4,8}$`, created.ID)
+	if !matched {
+		t.Errorf("ID %q does not match expected format bd-[a-z0-9]{4,8}", created.ID)
+	}
+}
 
-	// Prefix match without bd- prefix
-	got, err = s.Resolve("a1b")
+func TestCreatePreservesExplicitID(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	b := model.NewBead("Explicit ID")
+	b.ID = "bd-myid1234"
+	created, err := s.Create(b)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.Title != "No prefix" {
-		t.Errorf("expected title 'No prefix', got %q", got.Title)
+	if created.ID != "bd-myid1234" {
+		t.Errorf("expected ID 'bd-myid1234', got %q", created.ID)
+	}
+}
+
+func TestCreateCollisionEscalatesLength(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	// Fill the store with many 4-char IDs to increase collision probability.
+	// We can't guarantee collisions with random generation, but we can verify
+	// that generated IDs are always unique and within the valid length range.
+	ids := make(map[string]bool)
+	for i := 0; i < 50; i++ {
+		b := model.NewBead("Bead")
+		created, err := s.Create(b)
+		if err != nil {
+			t.Fatalf("create %d: %v", i, err)
+		}
+		if ids[created.ID] {
+			t.Fatalf("duplicate ID generated: %s", created.ID)
+		}
+		ids[created.ID] = true
+
+		matched, _ := regexp.MatchString(`^bd-[a-z0-9]{4,8}$`, created.ID)
+		if !matched {
+			t.Errorf("ID %q does not match expected format", created.ID)
+		}
 	}
 }
 
@@ -456,8 +482,7 @@ func TestAtomicWriteFileExists(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	b := model.NewBead("Persist test")
-	if _, err := s.Create(b); err != nil {
+	if _, err := s.Create(model.NewBead("Persist test")); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 

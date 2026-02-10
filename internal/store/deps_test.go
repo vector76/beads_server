@@ -375,10 +375,8 @@ func TestLink_Persistence(t *testing.T) {
 	path := filepath.Join(dir, "beads.json")
 
 	s, _ := Load(path)
-	a := model.NewBead("A")
-	b := model.NewBead("B")
-	s.Create(a)
-	s.Create(b)
+	a, _ := s.Create(model.NewBead("A"))
+	b, _ := s.Create(model.NewBead("B"))
 	s.Link(a.ID, b.ID)
 
 	// Reload store from disk

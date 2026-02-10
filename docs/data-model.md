@@ -6,7 +6,7 @@ A bead is an issue or task in the tracker.
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
-| `id` | string | auto-generated | `bd-` + 8 random lowercase alphanumeric chars (e.g., `bd-a1b2c3d4`) |
+| `id` | string | auto-generated | `bd-` + 4–8 random lowercase alphanumeric chars (e.g., `bd-a1b2`) |
 | `title` | string | (required) | One-line summary |
 | `description` | string | `""` | Longer body text |
 | `status` | Status | `open` | Lifecycle state |
@@ -29,12 +29,12 @@ A bead is an issue or task in the tracker.
 
 ## ID Format
 
-- Format: `bd-` followed by 8 random characters from `[a-z0-9]`
-- Example: `bd-a1b2c3d4`
+- Format: `bd-` followed by 4–8 random characters from `[a-z0-9]`
+- Default length: 4 random chars (e.g., `bd-a1b2`)
+- On collision during generation, length escalates: 4→5→6→7→8 (3 retries per length)
 - The `bd-` prefix is fixed and disambiguates bead IDs from other tokens
-- IDs can be referenced by unique prefix: `bd-a1b` resolves if unambiguous
-- The `bd-` prefix can be omitted: `a1b2c3d4` is equivalent to `bd-a1b2c3d4`
-- Ambiguous prefixes return an error listing all matching IDs
+- IDs must be specified exactly and in full (including the `bd-` prefix)
+- Existing 8-char IDs (e.g., `bd-a1b2c3d4`) remain valid
 
 ## Enums
 

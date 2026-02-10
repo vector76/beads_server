@@ -169,7 +169,7 @@ func TestAdd_MissingToken(t *testing.T) {
 	}
 }
 
-func TestShow_WithPrefix(t *testing.T) {
+func TestShow_PrefixFails(t *testing.T) {
 	ts := startTestServer(t)
 	setClientEnv(t, ts.URL)
 
@@ -177,12 +177,11 @@ func TestShow_WithPrefix(t *testing.T) {
 	out := runCmd(t, "add", "Prefix test bead")
 	created := parseBeadFromOutput(t, out)
 
-	// Show using a prefix of the ID (at least 3 chars from the random part)
+	// Prefix should NOT work — exact ID required
 	prefix := created.ID[:6] // "bd-" + 3 chars
-	out = runCmd(t, "show", prefix)
-	shown := parseBeadFromOutput(t, out)
-	if shown.ID != created.ID {
-		t.Errorf("prefix show ID = %q, want %q", shown.ID, created.ID)
+	err := runCmdErr(t, "show", prefix)
+	if err == nil {
+		t.Errorf("expected error for prefix match, ID=%q prefix=%q", created.ID, prefix)
 	}
 }
 

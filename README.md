@@ -82,7 +82,7 @@ bs close bd-a1b2c3d4
 | `bs deps <id>` | Show dependencies (active blockers, resolved blockers, blocks) |
 | `bs clean` | Purge old closed/deleted beads (`--days N`, default 5; `--days 0` removes all) |
 
-All output is pretty-printed JSON. IDs can be shortened to any unambiguous prefix (e.g., `bd-a1b` or just `a1b`).
+All output is pretty-printed JSON. IDs are short by default (`bd-` + 4 chars) and must be specified exactly and in full.
 
 ## Running Tests
 

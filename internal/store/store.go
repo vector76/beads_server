@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
-	"strings"
 	"sync"
 	"time"
 
@@ -130,12 +129,37 @@ func (s *Store) save() error {
 	return nil
 }
 
+// generateUniqueID creates a collision-free bead ID.
+// It starts at IDMinLen (4) random chars and retries up to 3 times per length.
+// On exhaustion, it increases the length by 1 (up to IDMaxLen).
+// At IDMaxLen, it retries indefinitely.
+// Caller must hold s.mu.
+func (s *Store) generateUniqueID() string {
+	for n := model.IDMinLen; n <= model.IDMaxLen; n++ {
+		retries := 3
+		if n == model.IDMaxLen {
+			retries = 100 // effectively unlimited at max length
+		}
+		for i := 0; i < retries; i++ {
+			id := model.GenerateIDN(n)
+			if _, exists := s.beads[id]; !exists {
+				return id
+			}
+		}
+	}
+	// Should never reach here given 36^8 possible IDs.
+	panic("failed to generate unique bead ID")
+}
+
 // Create adds a bead to the store and persists to disk.
+// If b.ID is empty, a collision-free ID is generated automatically.
 func (s *Store) Create(b model.Bead) (model.Bead, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.beads[b.ID]; exists {
+	if b.ID == "" {
+		b.ID = s.generateUniqueID()
+	} else if _, exists := s.beads[b.ID]; exists {
 		return model.Bead{}, fmt.Errorf("bead %s already exists", b.ID)
 	}
 
@@ -160,43 +184,17 @@ func (s *Store) Get(id string) (model.Bead, error) {
 	return b, nil
 }
 
-// Resolve finds a bead by exact ID or unique prefix match.
-// Accepts both "bd-xxx" and "xxx" forms (auto-prepends "bd-" if missing).
-// Returns an error if the prefix is ambiguous (listing matching IDs) or not found.
-func (s *Store) Resolve(prefix string) (model.Bead, error) {
+// Resolve finds a bead by exact ID.
+// The full ID including the "bd-" prefix is required.
+func (s *Store) Resolve(id string) (model.Bead, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// Auto-prepend bd- if missing
-	if !strings.HasPrefix(prefix, "bd-") {
-		prefix = "bd-" + prefix
-	}
-
-	// Try exact match first
-	if b, ok := s.beads[prefix]; ok {
+	if b, ok := s.beads[id]; ok {
 		return b, nil
 	}
 
-	// Try prefix match
-	var matches []model.Bead
-	for id, b := range s.beads {
-		if strings.HasPrefix(id, prefix) {
-			matches = append(matches, b)
-		}
-	}
-
-	switch len(matches) {
-	case 0:
-		return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", prefix)}
-	case 1:
-		return matches[0], nil
-	default:
-		ids := make([]string, len(matches))
-		for i, b := range matches {
-			ids[i] = b.ID
-		}
-		return model.Bead{}, fmt.Errorf("ambiguous prefix %s: matches %s", prefix, strings.Join(ids, ", "))
-	}
+	return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", id)}
 }
 
 // UpdateFields specifies which fields to update on a bead.

@@ -2,6 +2,7 @@ package model
 
 import (
 	"encoding/json"
+	"fmt"
 	"regexp"
 	"testing"
 	"time"
@@ -11,9 +12,20 @@ import (
 
 func TestGenerateIDFormat(t *testing.T) {
 	id := GenerateID()
-	matched, _ := regexp.MatchString(`^bd-[a-z0-9]{8}$`, id)
+	matched, _ := regexp.MatchString(`^bd-[a-z0-9]{4}$`, id)
 	if !matched {
-		t.Errorf("ID %q does not match expected format bd-[a-z0-9]{8}", id)
+		t.Errorf("ID %q does not match expected format bd-[a-z0-9]{4}", id)
+	}
+}
+
+func TestGenerateIDNFormat(t *testing.T) {
+	for _, n := range []int{4, 5, 6, 7, 8} {
+		id := GenerateIDN(n)
+		pattern := fmt.Sprintf(`^bd-[a-z0-9]{%d}$`, n)
+		matched, _ := regexp.MatchString(pattern, id)
+		if !matched {
+			t.Errorf("GenerateIDN(%d) = %q, does not match %s", n, id, pattern)
+		}
 	}
 }
 
@@ -67,9 +79,8 @@ func TestNewBeadDefaults(t *testing.T) {
 		t.Error("expected updated_at to be set")
 	}
 
-	matched, _ := regexp.MatchString(`^bd-[a-z0-9]{8}$`, b.ID)
-	if !matched {
-		t.Errorf("ID %q does not match expected format", b.ID)
+	if b.ID != "" {
+		t.Errorf("expected empty ID (assigned by store), got %q", b.ID)
 	}
 }
 
