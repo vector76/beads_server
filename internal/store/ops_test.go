@@ -249,24 +249,6 @@ func TestClaimConflictTerminalClosed(t *testing.T) {
 	}
 }
 
-func TestClaimConflictTerminalResolved(t *testing.T) {
-	s, _ := Load(tempPath(t))
-
-	now := time.Now().UTC()
-	b := newBeadWithFields("bd-clm00001", "Resolved", model.StatusResolved, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
-	s.Create(b)
-
-	_, err := s.Claim("bd-clm00001", "agent-1")
-	if err == nil {
-		t.Fatal("expected conflict error when claiming resolved bead")
-	}
-
-	var conflictErr *ConflictError
-	if !errors.As(err, &conflictErr) {
-		t.Errorf("expected ConflictError, got %T: %v", err, err)
-	}
-}
-
 func TestClaimConflictTerminalDeleted(t *testing.T) {
 	s, _ := Load(tempPath(t))
 
@@ -277,24 +259,6 @@ func TestClaimConflictTerminalDeleted(t *testing.T) {
 	_, err := s.Claim("bd-clm00001", "agent-1")
 	if err == nil {
 		t.Fatal("expected conflict error when claiming deleted bead")
-	}
-
-	var conflictErr *ConflictError
-	if !errors.As(err, &conflictErr) {
-		t.Errorf("expected ConflictError, got %T: %v", err, err)
-	}
-}
-
-func TestClaimConflictTerminalWontfix(t *testing.T) {
-	s, _ := Load(tempPath(t))
-
-	now := time.Now().UTC()
-	b := newBeadWithFields("bd-clm00001", "Wontfix", model.StatusWontfix, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
-	s.Create(b)
-
-	_, err := s.Claim("bd-clm00001", "agent-1")
-	if err == nil {
-		t.Fatal("expected conflict error when claiming wontfix bead")
 	}
 
 	var conflictErr *ConflictError

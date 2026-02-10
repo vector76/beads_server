@@ -46,12 +46,10 @@ Lifecycle state of a bead.
 |-------|-------------|
 | `open` | Default. Available for work |
 | `in_progress` | Claimed by an agent, actively being worked on |
-| `resolved` | Work completed successfully |
-| `closed` | Closed (completed or decided) |
-| `wontfix` | Intentionally not fixing |
+| `closed` | Closed (completed, decided, or won't fix) |
 | `deleted` | Soft-deleted. Excluded from default queries, recoverable via `reopen` |
 
-**Terminal states:** `resolved`, `closed`, `wontfix`, `deleted`. Beads in terminal states cannot be claimed. Terminal states do not count as active blockers.
+**Terminal states:** `closed`, `deleted`. Beads in terminal states cannot be claimed. Terminal states do not count as active blockers.
 
 ### Priority
 
@@ -86,7 +84,7 @@ Category of work.
 
 **Computed at query time:**
 - `blocks` — inverse of `blocked_by`, found by scanning all beads. Only non-deleted beads are included
-- Active vs. resolved blockers — the `deps` endpoint splits `blocked_by` into active (status `open`/`in_progress`) and resolved (all other statuses)
+- Active vs. non-active blockers — the `deps` endpoint splits `blocked_by` into active (status `open`/`in_progress`) and resolved (all other statuses)
 - `unblocked` — when a bead reaches a terminal state, the server finds beads that referenced it as a blocker and now have no remaining active blockers, and includes them in the response
 - "Ready" status — a bead is ready when it is `open` and has no active blockers. Used by `list --ready`
 
@@ -98,7 +96,6 @@ Any status can transition to any other status via `edit --status`. There are no 
 |---------|------------|
 | `claim` | `open` (or `in_progress` by same user) -> `in_progress` + sets assignee |
 | `close` | any -> `closed` |
-| `resolve` | any -> `resolved` |
 | `reopen` | any -> `open` (including from `deleted`, which restores the bead) |
 | `delete` | any -> `deleted` |
 

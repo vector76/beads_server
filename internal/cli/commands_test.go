@@ -144,21 +144,14 @@ func TestCRUDCycle(t *testing.T) {
 		t.Errorf("reopened status = %q, want %q", reopened.Status, model.StatusOpen)
 	}
 
-	// 6. Resolve the bead
-	out = runCmd(t, "resolve", created.ID)
-	resolved := parseBeadFromOutput(t, out)
-	if resolved.Status != model.StatusResolved {
-		t.Errorf("resolved status = %q, want %q", resolved.Status, model.StatusResolved)
-	}
-
-	// 7. Delete the bead
+	// 6. Delete the bead
 	out = runCmd(t, "delete", created.ID)
 	deleted := parseBeadFromOutput(t, out)
 	if deleted.ID != created.ID {
 		t.Errorf("deleted ID = %q, want %q", deleted.ID, created.ID)
 	}
 
-	// 8. Show the deleted bead — should return with status "deleted" (soft delete)
+	// 7. Show the deleted bead — should return with status "deleted" (soft delete)
 	out = runCmd(t, "show", created.ID)
 	afterDelete := parseBeadFromOutput(t, out)
 	if afterDelete.Status != model.StatusDeleted {

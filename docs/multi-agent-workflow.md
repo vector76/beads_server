@@ -12,7 +12,7 @@ Every agent should follow this pattern on startup:
 3. if not   → bs list --ready # find open, unblocked beads
 4.           → bs claim <id>  # take ownership
 5. do the work
-6. bs resolve <id>            # mark complete
+6. bs close <id>              # mark complete
 7. go to step 1
 ```
 
@@ -28,7 +28,7 @@ This handles the common case where an agent crashes or is restarted mid-task. Th
 |------------|---------------------------|-----------------------|
 | `open` (no assignee) | N/A | Succeeds |
 | `in_progress` | Succeeds (idempotent) | 409 Conflict |
-| Terminal (`resolved`/`closed`/`wontfix`/`deleted`) | 409 Conflict | 409 Conflict |
+| Terminal (`closed`/`deleted`) | 409 Conflict | 409 Conflict |
 
 When two agents race to claim the same bead, exactly one will succeed. The other receives a 409 and should pick a different bead.
 
@@ -55,7 +55,7 @@ bs claim bd-a1b2c3d4
 bs comment bd-a1b2c3d4 "Starting investigation, checking auth module"
 bs comment bd-a1b2c3d4 "Root cause: session cookie not set after redirect"
 bs comment bd-a1b2c3d4 "Fix applied in commit abc1234, running tests"
-bs resolve bd-a1b2c3d4
+bs close bd-a1b2c3d4
 ```
 
 Comments include the author (`BS_USER`) and timestamp, creating an audit trail of what each agent did and when.
@@ -80,10 +80,10 @@ bs link bd-m9n8o7p6 --blocked-by bd-e5f6g7h8   # tests wait for impl
 Now:
 - `list --ready` shows only "Design API schema" (the other two are blocked)
 - Agent-1 claims and completes the design bead
-- The resolve response includes `"unblocked": [...]` showing that "Implement API endpoints" is now ready
+- The close response includes `"unblocked": [...]` showing that "Implement API endpoints" is now ready
 - `list --ready` now shows "Implement API endpoints"
 - Agent-2 claims and works on it
-- When it resolves, "Write integration tests" becomes ready
+- When it closes, "Write integration tests" becomes ready
 
 ### Checking dependencies
 
@@ -93,7 +93,7 @@ bs deps bd-m9n8o7p6
 
 Returns:
 - `active_blockers` — beads that are still `open` or `in_progress` (work must complete first)
-- `resolved_blockers` — beads in the `blocked_by` list that are already `closed`/`resolved`/`wontfix`/`deleted`
+- `resolved_blockers` — beads in the `blocked_by` list that are already `closed`/`deleted`
 - `blocks` — beads that are waiting on this bead
 
 ## Multi-Agent Example
@@ -108,14 +108,14 @@ bs list --ready → [bd-aaa, bd-bbb] bs list --ready → [bd-aaa, bd-bbb]
 bs claim bd-aaa → 200 OK          bs claim bd-aaa → 409 Conflict
                                    bs claim bd-bbb → 200 OK
 (works on bd-aaa)                  (works on bd-bbb)
-bs resolve bd-aaa                  bs resolve bd-bbb
+bs close bd-aaa                    bs close bd-bbb
 bs list --ready → [bd-ccc]         bs list --ready → [bd-ccc]
 bs claim bd-ccc → 200 OK          bs claim bd-ccc → 409 Conflict
                                    bs list --ready → [bd-ddd]
                                    bs claim bd-ddd → 200 OK
 ```
 
-Each agent independently loops: check for in-progress work, find ready items, claim one, do the work, resolve, repeat. The server's atomic claim ensures no two agents work on the same bead.
+Each agent independently loops: check for in-progress work, find ready items, claim one, do the work, close, repeat. The server's atomic claim ensures no two agents work on the same bead.
 
 ## Environment Setup for Multiple Agents
 

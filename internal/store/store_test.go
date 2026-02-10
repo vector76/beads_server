@@ -369,6 +369,86 @@ func TestResolveWithoutBdPrefix(t *testing.T) {
 	}
 }
 
+// --- Migration tests ---
+
+func TestLoadMigratesResolvedToClosed(t *testing.T) {
+	path := tempPath(t)
+
+	// Write a file with a "resolved" bead using raw JSON (bypassing validation)
+	raw := `{"beads":[{"id":"bd-migr0001","title":"Resolved bead","status":"resolved","priority":"medium","type":"task","tags":[],"blocked_by":[],"comments":[],"created_at":"2025-01-01T00:00:00Z","updated_at":"2025-01-01T00:00:00Z"}]}`
+	if err := os.WriteFile(path, []byte(raw), 0644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	s, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	got, err := s.Get("bd-migr0001")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Status != model.StatusClosed {
+		t.Errorf("expected migrated status 'closed', got %q", got.Status)
+	}
+}
+
+func TestLoadMigratesWontfixToClosed(t *testing.T) {
+	path := tempPath(t)
+
+	raw := `{"beads":[{"id":"bd-migr0002","title":"Wontfix bead","status":"wontfix","priority":"medium","type":"task","tags":[],"blocked_by":[],"comments":[],"created_at":"2025-01-01T00:00:00Z","updated_at":"2025-01-01T00:00:00Z"}]}`
+	if err := os.WriteFile(path, []byte(raw), 0644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	s, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	got, err := s.Get("bd-migr0002")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Status != model.StatusClosed {
+		t.Errorf("expected migrated status 'closed', got %q", got.Status)
+	}
+}
+
+func TestLoadMigratesMixedStatuses(t *testing.T) {
+	path := tempPath(t)
+
+	raw := `{"beads":[
+		{"id":"bd-migr0001","title":"Resolved","status":"resolved","priority":"medium","type":"task","tags":[],"blocked_by":[],"comments":[],"created_at":"2025-01-01T00:00:00Z","updated_at":"2025-01-01T00:00:00Z"},
+		{"id":"bd-migr0002","title":"Wontfix","status":"wontfix","priority":"medium","type":"task","tags":[],"blocked_by":[],"comments":[],"created_at":"2025-01-01T00:00:00Z","updated_at":"2025-01-01T00:00:00Z"},
+		{"id":"bd-migr0003","title":"Open","status":"open","priority":"medium","type":"task","tags":[],"blocked_by":[],"comments":[],"created_at":"2025-01-01T00:00:00Z","updated_at":"2025-01-01T00:00:00Z"}
+	]}`
+	if err := os.WriteFile(path, []byte(raw), 0644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	s, err := Load(path)
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+
+	resolved, _ := s.Get("bd-migr0001")
+	if resolved.Status != model.StatusClosed {
+		t.Errorf("resolved bead: expected 'closed', got %q", resolved.Status)
+	}
+
+	wontfix, _ := s.Get("bd-migr0002")
+	if wontfix.Status != model.StatusClosed {
+		t.Errorf("wontfix bead: expected 'closed', got %q", wontfix.Status)
+	}
+
+	open, _ := s.Get("bd-migr0003")
+	if open.Status != model.StatusOpen {
+		t.Errorf("open bead: expected 'open', got %q", open.Status)
+	}
+}
+
 func TestAtomicWriteFileExists(t *testing.T) {
 	path := tempPath(t)
 	s, err := Load(path)

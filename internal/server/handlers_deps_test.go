@@ -216,13 +216,13 @@ func TestGetDeps_Success(t *testing.T) {
 	b := createViaAPI(t, srv, map[string]any{"title": "B"})
 	c := createViaAPI(t, srv, map[string]any{"title": "C"})
 
-	// A blocked by B (active) and C (will resolve)
+	// A blocked by B (active) and C (will close)
 	srv.Store.Link(a.ID, b.ID)
 	srv.Store.Link(a.ID, c.ID)
 
-	// Resolve C
-	resolved := model.StatusResolved
-	srv.Store.Update(c.ID, store.UpdateFields{Status: &resolved})
+	// Close C
+	closed := model.StatusClosed
+	srv.Store.Update(c.ID, store.UpdateFields{Status: &closed})
 
 	req := authReq(http.MethodGet, "/api/v1/beads/"+a.ID+"/deps", nil)
 	w := httptest.NewRecorder()

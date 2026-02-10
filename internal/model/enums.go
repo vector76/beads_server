@@ -11,18 +11,14 @@ type Status string
 const (
 	StatusOpen       Status = "open"
 	StatusInProgress Status = "in_progress"
-	StatusResolved   Status = "resolved"
 	StatusClosed     Status = "closed"
-	StatusWontfix    Status = "wontfix"
 	StatusDeleted    Status = "deleted"
 )
 
 var validStatuses = map[Status]bool{
 	StatusOpen:       true,
 	StatusInProgress: true,
-	StatusResolved:   true,
 	StatusClosed:     true,
-	StatusWontfix:    true,
 	StatusDeleted:    true,
 }
 

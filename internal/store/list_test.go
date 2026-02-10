@@ -269,17 +269,17 @@ func TestListReadyFilter(t *testing.T) {
 	}
 }
 
-func TestListReadyFilterWithResolvedBlocker(t *testing.T) {
+func TestListReadyFilterWithClosedBlocker(t *testing.T) {
 	s, _ := Load(tempPath(t))
 
 	now := time.Now().UTC()
-	resolvedBlocker := newBeadWithFields("bd-rblck001", "Resolved blocker", model.StatusResolved, model.PriorityHigh, model.TypeTask, "", nil, nil, now)
-	dependentBead := newBeadWithFields("bd-depnd001", "Depends on resolved", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-rblck001"}, now)
-	s.Create(resolvedBlocker)
+	closedBlocker := newBeadWithFields("bd-rblck001", "Closed blocker", model.StatusClosed, model.PriorityHigh, model.TypeTask, "", nil, nil, now)
+	dependentBead := newBeadWithFields("bd-depnd001", "Depends on closed", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-rblck001"}, now)
+	s.Create(closedBlocker)
 	s.Create(dependentBead)
 
 	result := s.List(ListFilters{Ready: true})
-	// dependentBead should be ready since its only blocker is resolved
+	// dependentBead should be ready since its only blocker is closed
 	if result.Total != 1 {
 		t.Fatalf("expected 1 ready bead, got %d", result.Total)
 	}

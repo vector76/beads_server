@@ -200,7 +200,7 @@ func (s *Store) GetUnblocked(beadID string) []model.Bead {
 }
 
 // ComputeUnblocked finds beads that were blocked only by the given bead and are now
-// unblocked because that bead reached a terminal state (closed/resolved/wontfix/deleted).
+// unblocked because that bead reached a terminal state (closed/deleted).
 // Caller must hold s.mu (at least RLock).
 func (s *Store) ComputeUnblocked(beadID string) []model.Bead {
 	var unblocked []model.Bead

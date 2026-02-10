@@ -248,7 +248,7 @@ func (s *Server) handleDeleteBead(w http.ResponseWriter, r *http.Request) {
 // isTerminalStatus returns true for statuses that could unblock other beads.
 func isTerminalStatus(s model.Status) bool {
 	switch s {
-	case model.StatusClosed, model.StatusResolved, model.StatusWontfix, model.StatusDeleted:
+	case model.StatusClosed, model.StatusDeleted:
 		return true
 	}
 	return false

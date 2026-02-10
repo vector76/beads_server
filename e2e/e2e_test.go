@@ -98,7 +98,7 @@ func parseDeps(t *testing.T, output string) store.DepsResult {
 
 // TestFullLifecycle exercises the complete bead lifecycle through the CLI
 // against a real server: create, list, show, edit, comment, claim, search,
-// close, reopen, resolve, delete.
+// close, reopen, delete.
 func TestFullLifecycle(t *testing.T) {
 	ts := startServer(t)
 	setEnv(t, ts.URL, "e2e-agent")
@@ -193,21 +193,14 @@ func TestFullLifecycle(t *testing.T) {
 		t.Errorf("reopened status = %q, want %q", reopened.Status, model.StatusOpen)
 	}
 
-	// 11. Resolve
-	out = run(t, "resolve", bead.ID)
-	resolved := parseBead(t, out)
-	if resolved.Status != model.StatusResolved {
-		t.Errorf("resolved status = %q, want %q", resolved.Status, model.StatusResolved)
-	}
-
-	// 12. Delete (soft delete)
+	// 11. Delete (soft delete)
 	out = run(t, "delete", bead.ID)
 	deleted := parseBead(t, out)
 	if deleted.Status != model.StatusDeleted {
 		t.Errorf("deleted status = %q, want %q", deleted.Status, model.StatusDeleted)
 	}
 
-	// 13. List with --all should still include the deleted bead
+	// 12. List with --all should still include the deleted bead
 	out = run(t, "list", "--all")
 	allResult := parseListResult(t, out)
 	if allResult.Total != 1 {
@@ -252,15 +245,15 @@ func TestMultiAgentConflict(t *testing.T) {
 		t.Fatal("expected claim conflict error for agent-beta, got nil")
 	}
 
-	// Agent 1 resolves the bead
+	// Agent 1 closes the bead
 	os.Setenv("BS_USER", "agent-alpha")
-	run(t, "resolve", bead.ID)
+	run(t, "close", bead.ID)
 
-	// Agent 2 tries to claim the resolved bead — should fail (terminal state)
+	// Agent 2 tries to claim the closed bead — should fail (terminal state)
 	os.Setenv("BS_USER", "agent-beta")
 	err = runExpectErr(t, "claim", bead.ID)
 	if err == nil {
-		t.Fatal("expected error claiming resolved bead, got nil")
+		t.Fatal("expected error claiming closed bead, got nil")
 	}
 
 	// Create a second bead for agent-beta to claim successfully
@@ -385,7 +378,7 @@ func TestDependencyChain(t *testing.T) {
 	setEnv(t, ts.URL, "dep-agent")
 
 	// Create a chain: C is blocked by B, B is blocked by A
-	// So A must be resolved first, then B, then C becomes unblocked.
+	// So A must be closed first, then B, then C becomes unblocked.
 	outA := run(t, "add", "Task A - foundation")
 	beadA := parseBead(t, outA)
 
@@ -437,17 +430,17 @@ func TestDependencyChain(t *testing.T) {
 		t.Errorf("ready bead = %q, want %q", readyResult.Beads[0].ID, beadA.ID)
 	}
 
-	// Resolve A — this should unblock B
-	out = run(t, "resolve", beadA.ID)
+	// Close A — this should unblock B
+	out = run(t, "close", beadA.ID)
 	// The response may include "unblocked" field; we just need to verify
 	// B is now unblocked via deps check
 	out = run(t, "deps", beadB.ID)
 	depsB = parseDeps(t, out)
 	if len(depsB.ActiveBlockers) != 0 {
-		t.Errorf("after resolving A, B active_blockers = %d, want 0", len(depsB.ActiveBlockers))
+		t.Errorf("after closing A, B active_blockers = %d, want 0", len(depsB.ActiveBlockers))
 	}
 	if len(depsB.ResolvedBlockers) != 1 {
-		t.Fatalf("after resolving A, B resolved_blockers = %d, want 1", len(depsB.ResolvedBlockers))
+		t.Fatalf("after closing A, B resolved_blockers = %d, want 1", len(depsB.ResolvedBlockers))
 	}
 	if depsB.ResolvedBlockers[0].ID != beadA.ID {
 		t.Errorf("B resolved_blockers[0].id = %q, want %q", depsB.ResolvedBlockers[0].ID, beadA.ID)
@@ -460,29 +453,29 @@ func TestDependencyChain(t *testing.T) {
 		t.Errorf("C still has active_blockers = %d, want 1", len(depsC.ActiveBlockers))
 	}
 
-	// Resolve B — this should unblock C
-	run(t, "resolve", beadB.ID)
+	// Close B — this should unblock C
+	run(t, "close", beadB.ID)
 
 	out = run(t, "deps", beadC.ID)
 	depsC = parseDeps(t, out)
 	if len(depsC.ActiveBlockers) != 0 {
-		t.Errorf("after resolving B, C active_blockers = %d, want 0", len(depsC.ActiveBlockers))
+		t.Errorf("after closing B, C active_blockers = %d, want 0", len(depsC.ActiveBlockers))
 	}
 	if len(depsC.ResolvedBlockers) != 1 {
-		t.Fatalf("after resolving B, C resolved_blockers = %d, want 1", len(depsC.ResolvedBlockers))
+		t.Fatalf("after closing B, C resolved_blockers = %d, want 1", len(depsC.ResolvedBlockers))
 	}
 
-	// Now --ready should show only C (A and B are resolved, not listed in default)
+	// Now --ready should show only C (A and B are closed, not listed in default)
 	out = run(t, "list", "--ready")
 	readyResult = parseListResult(t, out)
 	if readyResult.Total != 1 {
-		t.Errorf("after resolving A and B, ready list total = %d, want 1", readyResult.Total)
+		t.Errorf("after closing A and B, ready list total = %d, want 1", readyResult.Total)
 	}
 	if readyResult.Beads[0].ID != beadC.ID {
 		t.Errorf("ready bead = %q, want %q", readyResult.Beads[0].ID, beadC.ID)
 	}
 
-	// Unlink the resolved dependency from C and verify
+	// Unlink the closed dependency from C and verify
 	run(t, "unlink", beadC.ID, "--blocked-by", beadB.ID)
 	out = run(t, "deps", beadC.ID)
 	depsC = parseDeps(t, out)

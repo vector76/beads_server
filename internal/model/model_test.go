@@ -172,7 +172,7 @@ func TestCommentJSONRoundTrip(t *testing.T) {
 // --- Enum validation tests ---
 
 func TestStatusValid(t *testing.T) {
-	valid := []Status{StatusOpen, StatusInProgress, StatusResolved, StatusClosed, StatusWontfix, StatusDeleted}
+	valid := []Status{StatusOpen, StatusInProgress, StatusClosed, StatusDeleted}
 	for _, s := range valid {
 		if !s.Valid() {
 			t.Errorf("expected status %q to be valid", s)
@@ -184,6 +184,12 @@ func TestStatusValid(t *testing.T) {
 	}
 	if Status("").Valid() {
 		t.Error("expected empty status to be invalid")
+	}
+	if Status("resolved").Valid() {
+		t.Error("expected 'resolved' status to be invalid")
+	}
+	if Status("wontfix").Valid() {
+		t.Error("expected 'wontfix' status to be invalid")
 	}
 }
 
@@ -277,6 +283,24 @@ func TestBeadUnmarshalInvalidStatus(t *testing.T) {
 	err := json.Unmarshal([]byte(raw), &b)
 	if err == nil {
 		t.Error("expected error unmarshaling bead with invalid status")
+	}
+}
+
+func TestBeadUnmarshalRejectsResolved(t *testing.T) {
+	raw := `{"id":"bd-a1b2c3d4","title":"test","status":"resolved","priority":"medium","type":"task"}`
+	var b Bead
+	err := json.Unmarshal([]byte(raw), &b)
+	if err == nil {
+		t.Error("expected error unmarshaling bead with status 'resolved'")
+	}
+}
+
+func TestBeadUnmarshalRejectsWontfix(t *testing.T) {
+	raw := `{"id":"bd-a1b2c3d4","title":"test","status":"wontfix","priority":"medium","type":"task"}`
+	var b Bead
+	err := json.Unmarshal([]byte(raw), &b)
+	if err == nil {
+		t.Error("expected error unmarshaling bead with status 'wontfix'")
 	}
 }
 

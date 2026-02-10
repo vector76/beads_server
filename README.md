@@ -40,7 +40,7 @@ bs add "Fix login bug" --type bug --priority high
 bs list
 bs claim bd-a1b2c3d4
 bs comment bd-a1b2c3d4 "Root cause identified: session cookie not set"
-bs resolve bd-a1b2c3d4
+bs close bd-a1b2c3d4
 ```
 
 ## Environment Variables
@@ -70,7 +70,6 @@ bs resolve bd-a1b2c3d4
 | `bs show <id>` | Show full bead details |
 | `bs edit <id>` | Modify fields (`--title`, `--status`, `--priority`, `--type`, `--add-tag`, `--remove-tag`, ...) |
 | `bs close <id>` | Set status to `closed` |
-| `bs resolve <id>` | Set status to `resolved` |
 | `bs reopen <id>` | Set status to `open` |
 | `bs delete <id>` | Soft-delete (sets status to `deleted`, reversible with `reopen`) |
 | `bs list` | List active beads (`--all`, `--ready`, `--status`, `--priority`, `--type`, `--tag`, `--assignee`) |

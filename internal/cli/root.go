@@ -30,7 +30,6 @@ func NewRootCmd() *cobra.Command {
 		newShowCmd(),
 		newEditCmd(),
 		newStatusCmd("close", "closed"),
-		newStatusCmd("resolve", "resolved"),
 		newStatusCmd("reopen", "open"),
 		newDeleteCmd(),
 		newListCmd(),

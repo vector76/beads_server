@@ -81,7 +81,7 @@ func TestListBeads_AllFlag(t *testing.T) {
 	srv := crudServer(t)
 	createViaAPI(t, srv, map[string]any{"title": "Open"})
 	createViaAPI(t, srv, map[string]any{"title": "Closed", "status": "closed"})
-	createViaAPI(t, srv, map[string]any{"title": "Resolved", "status": "resolved"})
+	createViaAPI(t, srv, map[string]any{"title": "Also closed", "status": "closed"})
 
 	req := authReq(http.MethodGet, "/api/v1/beads?all=true", nil)
 	w := httptest.NewRecorder()

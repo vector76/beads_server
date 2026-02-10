@@ -196,16 +196,16 @@ func TestDeps_Structure(t *testing.T) {
 	c := createBead(t, s, "C")
 	d := createBead(t, s, "D")
 
-	// A is blocked by B (active) and C (will resolve)
+	// A is blocked by B (active) and C (will close)
 	s.Link(a.ID, b.ID)
 	s.Link(a.ID, c.ID)
 
 	// D is blocked by A (so A "blocks" D)
 	s.Link(d.ID, a.ID)
 
-	// Resolve C
-	resolved := model.StatusResolved
-	s.Update(c.ID, UpdateFields{Status: &resolved})
+	// Close C
+	closed := model.StatusClosed
+	s.Update(c.ID, UpdateFields{Status: &closed})
 
 	deps, err := s.Deps(a.ID)
 	if err != nil {
@@ -278,7 +278,7 @@ func TestDeps_NonExistent(t *testing.T) {
 
 // --- ComputeUnblocked tests ---
 
-func TestComputeUnblocked_OnResolve(t *testing.T) {
+func TestComputeUnblocked_OnClose(t *testing.T) {
 	s := tempStore(t)
 	blocker := createBead(t, s, "Blocker")
 	blocked := createBead(t, s, "Blocked")
@@ -286,9 +286,9 @@ func TestComputeUnblocked_OnResolve(t *testing.T) {
 	// blocked is blocked by blocker
 	s.Link(blocked.ID, blocker.ID)
 
-	// Resolve the blocker
-	resolved := model.StatusResolved
-	s.Update(blocker.ID, UpdateFields{Status: &resolved})
+	// Close the blocker
+	closed := model.StatusClosed
+	s.Update(blocker.ID, UpdateFields{Status: &closed})
 
 	// Compute unblocked - need read lock since ComputeUnblocked expects caller to hold lock
 	s.mu.RLock()
@@ -310,9 +310,9 @@ func TestComputeUnblocked_StillBlocked(t *testing.T) {
 	s.Link(blocked.ID, blocker1.ID)
 	s.Link(blocked.ID, blocker2.ID)
 
-	// Resolve only blocker1
-	resolved := model.StatusResolved
-	s.Update(blocker1.ID, UpdateFields{Status: &resolved})
+	// Close only blocker1
+	closed := model.StatusClosed
+	s.Update(blocker1.ID, UpdateFields{Status: &closed})
 
 	s.mu.RLock()
 	result := s.ComputeUnblocked(blocker1.ID)
@@ -321,25 +321,6 @@ func TestComputeUnblocked_StillBlocked(t *testing.T) {
 	// Still blocked by blocker2, so should not be unblocked
 	if len(result) != 0 {
 		t.Fatalf("expected no unblocked beads, got %v", result)
-	}
-}
-
-func TestComputeUnblocked_OnClose(t *testing.T) {
-	s := tempStore(t)
-	blocker := createBead(t, s, "Blocker")
-	blocked := createBead(t, s, "Blocked")
-
-	s.Link(blocked.ID, blocker.ID)
-
-	closed := model.StatusClosed
-	s.Update(blocker.ID, UpdateFields{Status: &closed})
-
-	s.mu.RLock()
-	result := s.ComputeUnblocked(blocker.ID)
-	s.mu.RUnlock()
-
-	if len(result) != 1 || result[0].ID != blocked.ID {
-		t.Fatalf("expected [%s] unblocked, got %v", blocked.ID, result)
 	}
 }
 
@@ -353,9 +334,9 @@ func TestComputeUnblocked_ExcludesDeleted(t *testing.T) {
 	// Delete the blocked bead first
 	s.Delete(blocked.ID)
 
-	// Now resolve the blocker
-	resolved := model.StatusResolved
-	s.Update(blocker.ID, UpdateFields{Status: &resolved})
+	// Now close the blocker
+	closed := model.StatusClosed
+	s.Update(blocker.ID, UpdateFields{Status: &closed})
 
 	s.mu.RLock()
 	result := s.ComputeUnblocked(blocker.ID)
@@ -376,8 +357,8 @@ func TestComputeUnblocked_MultipleUnblocked(t *testing.T) {
 	s.Link(b1.ID, blocker.ID)
 	s.Link(b2.ID, blocker.ID)
 
-	resolved := model.StatusResolved
-	s.Update(blocker.ID, UpdateFields{Status: &resolved})
+	closed := model.StatusClosed
+	s.Update(blocker.ID, UpdateFields{Status: &closed})
 
 	s.mu.RLock()
 	result := s.ComputeUnblocked(blocker.ID)

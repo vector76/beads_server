@@ -151,7 +151,7 @@ func newEditCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&title, "title", "", "bead title")
-	cmd.Flags().StringVar(&status, "status", "", "status (open, in_progress, resolved, closed, wontfix, deleted)")
+	cmd.Flags().StringVar(&status, "status", "", "status (open, in_progress, closed, deleted)")
 	cmd.Flags().StringVar(&priority, "priority", "", "priority (critical, high, medium, low, none)")
 	cmd.Flags().StringVar(&beadType, "type", "", "bead type (bug, feature, task, epic, chore)")
 	cmd.Flags().StringVar(&description, "description", "", "bead description")

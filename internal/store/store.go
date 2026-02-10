@@ -24,8 +24,27 @@ type fileData struct {
 	Beads []model.Bead `json:"beads"`
 }
 
+// rawBead mirrors model.Bead but uses a plain string for Status so that
+// legacy values ("resolved", "wontfix") survive JSON unmarshaling and can
+// be migrated to "closed" at load time.
+type rawBead struct {
+	ID          string          `json:"id"`
+	Title       string          `json:"title"`
+	Description string          `json:"description"`
+	Status      string          `json:"status"`
+	Priority    model.Priority  `json:"priority"`
+	Type        model.BeadType  `json:"type"`
+	Tags        []string        `json:"tags"`
+	BlockedBy   []string        `json:"blocked_by"`
+	Assignee    string          `json:"assignee"`
+	Comments    []model.Comment `json:"comments"`
+	CreatedAt   time.Time       `json:"created_at"`
+	UpdatedAt   time.Time       `json:"updated_at"`
+}
+
 // Load reads beads from the given file path, or initializes an empty store
-// if the file does not exist.
+// if the file does not exist. Legacy statuses "resolved" and "wontfix" are
+// silently migrated to "closed" at load time.
 func Load(path string) (*Store, error) {
 	s := &Store{
 		beads:    make(map[string]model.Bead),
@@ -40,13 +59,33 @@ func Load(path string) (*Store, error) {
 		return nil, fmt.Errorf("reading data file: %w", err)
 	}
 
-	var fd fileData
+	var fd struct {
+		Beads []rawBead `json:"beads"`
+	}
 	if err := json.Unmarshal(data, &fd); err != nil {
 		return nil, fmt.Errorf("parsing data file: %w", err)
 	}
 
-	for _, b := range fd.Beads {
-		s.beads[b.ID] = b
+	for _, rb := range fd.Beads {
+		status := model.Status(rb.Status)
+		// Migrate legacy statuses to closed.
+		if status == "resolved" || status == "wontfix" {
+			status = model.StatusClosed
+		}
+		s.beads[rb.ID] = model.Bead{
+			ID:          rb.ID,
+			Title:       rb.Title,
+			Description: rb.Description,
+			Status:      status,
+			Priority:    rb.Priority,
+			Type:        rb.Type,
+			Tags:        rb.Tags,
+			BlockedBy:   rb.BlockedBy,
+			Assignee:    rb.Assignee,
+			Comments:    rb.Comments,
+			CreatedAt:   rb.CreatedAt,
+			UpdatedAt:   rb.UpdatedAt,
+		}
 	}
 
 	return s, nil

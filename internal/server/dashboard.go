@@ -13,9 +13,7 @@ type dashboardProject struct {
 	Name       string
 	InProgress []store.BeadSummary
 	Open       []store.BeadSummary
-	Resolved   []store.BeadSummary
 	Closed     []store.BeadSummary
-	Wontfix    []store.BeadSummary
 }
 
 // dashboardData holds the full template data.
@@ -37,12 +35,8 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 				dp.InProgress = append(dp.InProgress, b)
 			case model.StatusOpen:
 				dp.Open = append(dp.Open, b)
-			case model.StatusResolved:
-				dp.Resolved = append(dp.Resolved, b)
 			case model.StatusClosed:
 				dp.Closed = append(dp.Closed, b)
-			case model.StatusWontfix:
-				dp.Wontfix = append(dp.Wontfix, b)
 			}
 		}
 		data.Projects = append(data.Projects, dp)
@@ -80,9 +74,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
 <div class="counts">
   <div><strong>In Progress:</strong> {{len .InProgress}}</div>
   <div><strong>Open:</strong> {{len .Open}}</div>
-  <div><strong>Resolved:</strong> {{len .Resolved}}</div>
   <div><strong>Closed:</strong> {{len .Closed}}</div>
-  <div><strong>Wontfix:</strong> {{len .Wontfix}}</div>
 </div>
 
 {{if .InProgress}}
@@ -101,27 +93,11 @@ var dashboardTmpl = template.Must(template.New("dashboard").Parse(`<!DOCTYPE htm
 {{end}}</table>
 {{end}}
 
-{{if .Resolved}}
-<h3>Resolved ({{len .Resolved}})</h3>
-<table>
-<tr><th>ID</th><th>Title</th><th>Priority</th></tr>
-{{range .Resolved}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Priority}}</td></tr>
-{{end}}</table>
-{{end}}
-
 {{if .Closed}}
 <h3>Closed ({{len .Closed}})</h3>
 <table>
 <tr><th>ID</th><th>Title</th><th>Priority</th></tr>
 {{range .Closed}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Priority}}</td></tr>
-{{end}}</table>
-{{end}}
-
-{{if .Wontfix}}
-<h3>Wontfix ({{len .Wontfix}})</h3>
-<table>
-<tr><th>ID</th><th>Title</th><th>Priority</th></tr>
-{{range .Wontfix}}<tr><td>{{.ID}}</td><td>{{.Title}}</td><td>{{.Priority}}</td></tr>
 {{end}}</table>
 {{end}}
 

@@ -323,9 +323,9 @@ func TestUpdateBead_UnblockedField(t *testing.T) {
 	// Link them
 	srv.Store.Link(blocked.ID, blocker.ID)
 
-	// Resolve the blocker
+	// Close the blocker
 	req := authReq(http.MethodPatch, "/api/v1/beads/"+blocker.ID, map[string]any{
-		"status": "resolved",
+		"status": "closed",
 	})
 	w := httptest.NewRecorder()
 	srv.Router.ServeHTTP(w, req)

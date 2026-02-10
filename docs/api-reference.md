@@ -113,13 +113,13 @@ PATCH /api/v1/beads/:id
 
 **Response** `200`: Updated bead object.
 
-When a status change to a terminal state (`closed`, `resolved`, `wontfix`, `deleted`) unblocks other beads, the response includes an `unblocked` field:
+When a status change to a terminal state (`closed`, `deleted`) unblocks other beads, the response includes an `unblocked` field:
 
 ```json
 {
   "id": "bd-a1b2c3d4",
   "title": "Fix login bug",
-  "status": "resolved",
+  "status": "closed",
   "unblocked": [
     {
       "id": "bd-e5f6g7h8",
@@ -323,7 +323,7 @@ GET /api/v1/beads/:id/deps
     {
       "id": "bd-m9n8o7p6",
       "title": "Design schema",
-      "status": "resolved",
+      "status": "closed",
       ...
     }
   ],

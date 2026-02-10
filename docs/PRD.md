@@ -65,7 +65,7 @@ bs <command>                 # CLI client mode (talks to the server)
 | `id` | String | Fixed prefix `bd-` + 8-char random lowercase alphanumeric (e.g. `bd-a1b2c3d4`) |
 | `title` | String | One-line summary (required) |
 | `description` | String | Longer body text (optional, default empty) |
-| `status` | Enum | `open`, `in_progress`, `resolved`, `closed`, `wontfix`, `deleted` |
+| `status` | Enum | `open`, `in_progress`, `closed`, `deleted` |
 | `priority` | Enum | `critical`, `high`, `medium`, `low`, `none` |
 | `type` | Enum | `bug`, `feature`, `task`, `epic`, `chore` |
 | `tags` | List\<String\> | Free-form labels |
@@ -88,7 +88,7 @@ bs <command>                 # CLI client mode (talks to the server)
 - Default status: `open`
 - Default priority: `medium`
 - Default type: `task`
-- A bead with status `open` whose `blocked_by` list contains any non-closed/non-resolved/non-deleted bead is considered "blocked" (computed, not stored)
+- A bead with status `open` whose `blocked_by` list contains any active (`open`/`in_progress`) bead is considered "blocked" (computed, not stored)
 - The `bd-` prefix is fixed and not configurable. It disambiguates bead IDs from other tokens (e.g. `bd-ls` is clearly a bead, not a shell command)
 
 ## CLI Commands
@@ -119,7 +119,6 @@ bs <command>                 # CLI client mode (talks to the server)
 | `bs edit <id> --status in_progress` | Change status |
 | `bs edit <id> --add-tag foo --remove-tag bar` | Incremental tag editing |
 | `bs close <id>` | Shorthand for `--status closed` |
-| `bs resolve <id>` | Shorthand for `--status resolved` |
 | `bs reopen <id>` | Shorthand for `--status open` |
 | `bs delete <id>` | Soft-delete: sets status to `deleted` |
 
@@ -134,7 +133,7 @@ The `claim` command enables a multi-agent workflow:
 1. Agent starts up, runs `bs mine` to check for previously claimed but unfinished work
 2. If found, the agent resumes that work
 3. If not, the agent runs `bs list --ready` to find open, unblocked work, then `bs claim <id>` to take ownership
-4. When done, the agent runs `bs resolve <id>` or `bs close <id>`
+4. When done, the agent runs `bs close <id>`
 
 ### Listing and Search
 
@@ -246,7 +245,7 @@ All errors return a JSON object: `{"error": "description of what went wrong"}` w
 ```
 
 - **`blocked_by`**: Only active blockers (status = `open` or `in_progress`). If this list is empty, the bead is unblocked — no further inspection needed
-- **`resolved_blockers`**: Blockers in the storage-layer `blocked_by` list whose status is `closed`, `resolved`, `wontfix`, or `deleted`. Included for context; agents can ignore this field
+- **`resolved_blockers`**: Blockers in the storage-layer `blocked_by` list whose status is `closed` or `deleted`. Included for context; agents can ignore this field
 - **`blocks`**: Beads that list this bead in their `blocked_by` (computed inverse). Only active beads (not deleted) are shown
 
 The storage layer is unchanged — `blocked_by` stores all dependency IDs regardless of status. The `deps` endpoint and the `--ready` filter both apply the same logic: only `open`/`in_progress` blockers count as active.
@@ -260,10 +259,10 @@ The storage layer is unchanged — `blocked_by` stores all dependency IDs regard
 - `claim` atomically sets `status = in_progress` and `assignee = <BS_USER>`
 - If the bead is already `in_progress` and assigned to a different user, `claim` returns 409 Conflict
 - If the bead is already `in_progress` and assigned to the same user, `claim` succeeds (idempotent)
-- If the bead is in a terminal state (`closed`, `resolved`, `wontfix`, `deleted`), `claim` returns 409 Conflict
+- If the bead is in a terminal state (`closed`, `deleted`), `claim` returns 409 Conflict
 
 ### Ready Filter
-- `--ready` shows beads that are `open` AND not blocked by any active (non-closed/non-resolved/non-deleted) bead
+- `--ready` shows beads that are `open` AND not blocked by any active (`open`/`in_progress`) bead
 - This is the most common query for agents looking for work to pick up
 
 ### List Defaults

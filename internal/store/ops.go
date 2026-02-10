@@ -134,7 +134,7 @@ func (s *Store) Claim(beadID, user string) (model.Bead, error) {
 
 	// Check terminal states
 	switch b.Status {
-	case model.StatusClosed, model.StatusResolved, model.StatusWontfix, model.StatusDeleted:
+	case model.StatusClosed, model.StatusDeleted:
 		return model.Bead{}, &ConflictError{
 			Message: fmt.Sprintf("bead %s is %s and cannot be claimed", beadID, b.Status),
 		}
