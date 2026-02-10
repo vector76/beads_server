@@ -8,6 +8,7 @@ internal/
   model/                   Data types (Bead, Comment, enums)
   store/                   In-memory store with JSON file persistence
   server/                  HTTP server, chi router, handlers
+  project/                 Multi-project config loader
   cli/                     Cobra commands, HTTP client
 e2e/                       End-to-end tests
 ```
@@ -16,10 +17,12 @@ Dependencies flow in one direction:
 
 ```
 model  <--  store  <--  server  <--  cli
-                   \__________________/
+                   \       \________/ |
+                    \                 |
+                     project --------/
 ```
 
-`model` has no internal dependencies. `store` depends only on `model`. `server` depends on `store` and `model`. `cli` depends on `server` and `store` (the `serve` command loads the store and creates the server directly) and uses the HTTP client to talk to the server for all other commands.
+`model` has no internal dependencies. `store` depends only on `model`. `server` depends on `store` and `model`. `project` depends only on the standard library (parses the projects config file). `cli` depends on `server`, `store`, and `project` (the `serve` command loads the store, optionally loads a projects config, and creates the server) and uses the HTTP client to talk to the server for all other commands.
 
 ## Package Responsibilities
 
@@ -27,9 +30,11 @@ model  <--  store  <--  server  <--  cli
 
 **`internal/store`** — The persistence and business logic layer. Holds all beads in a `map[string]model.Bead` protected by a `sync.RWMutex`. Provides CRUD with collision-aware ID generation, exact ID resolution, list/filter/sort/paginate, search, claim, comments, and dependency management (link/unlink/deps with cycle detection). Every mutation writes to disk atomically.
 
-**`internal/server`** — HTTP layer. Creates a chi router with bearer token auth middleware. Maps REST endpoints to store operations. Translates between HTTP request/response formats and store types. No business logic beyond request parsing and response formatting.
+**`internal/project`** — Multi-project configuration. Defines `ProjectEntry` (name, token, data file) and `LoadProjectsFile()` to parse and validate a JSON projects config. No I/O beyond reading the config file.
 
-**`internal/cli`** — User-facing CLI built with cobra. The `serve` command starts the HTTP server directly. All other commands are thin HTTP clients: they read `BS_URL`/`BS_TOKEN`/`BS_USER` from the environment, call the server's REST API, and print the JSON response to stdout.
+**`internal/server`** — HTTP layer. Creates a chi router with request logging and bearer token auth middleware. Provides a `StoreProvider` interface that maps a bearer token to the correct store — `singleStoreProvider` for single-project mode, `multiStoreProvider` for multi-project mode. Includes an HTML dashboard at `/` showing bead status across all projects. Maps REST endpoints to store operations. Translates between HTTP request/response formats and store types. No business logic beyond request parsing and response formatting.
+
+**`internal/cli`** — User-facing CLI built with cobra. The `serve` command starts the HTTP server directly (single-project mode with `--token`, or multi-project mode with `--projects`). All other commands are thin HTTP clients: they read `BS_URL`/`BS_TOKEN`/`BS_USER` from environment variables (with `.env` file fallback), call the server's REST API, and print the JSON response to stdout.
 
 ## Data Flow
 
@@ -85,9 +90,11 @@ Tests are organized in four layers, matching the package structure:
 
 **Store tests (`internal/store/`)** — Test all store operations against a real temp file. Cover CRUD, collision-aware ID generation, exact ID resolution, filtering, pagination, search, claim semantics (idempotent, conflict, terminal state), dependency operations (link, unlink, cycle detection), and unblocked computation. Four test files mirror the four source files (`store_test.go`, `list_test.go`, `ops_test.go`, `deps_test.go`).
 
-**Server tests (`internal/server/`)** — Use `httptest.NewServer` with a real store (temp file). Test each HTTP handler: request parsing, response format, status codes, auth middleware. Four test files mirror the four source files (`server_test.go`, `handlers_test.go`, `handlers_query_test.go`, `handlers_deps_test.go`).
+**Project tests (`internal/project/`)** — Validate project config loading and validation: non-empty fields, no duplicate names or tokens.
 
-**CLI tests (`internal/cli/`)** — Start a test HTTP server, set environment variables, execute cobra commands, and verify the JSON output. Test the full CLI-to-server round-trip without a real network. Three test files: `cli_test.go` (whoami, help, serve validation), `commands_test.go` (CRUD), `commands_query_test.go` (list, search, claim, comments, dependencies).
+**Server tests (`internal/server/`)** — Use `httptest.NewServer` with a real store (temp file). Test each HTTP handler: request parsing, response format, status codes, auth middleware, and store provider routing. Four test files mirror the four source files (`server_test.go`, `handlers_test.go`, `handlers_query_test.go`, `handlers_deps_test.go`), plus `provider_test.go` for provider implementations.
+
+**CLI tests (`internal/cli/`)** — Start a test HTTP server, set environment variables, execute cobra commands, and verify the JSON output. Test the full CLI-to-server round-trip without a real network. Four test files: `cli_test.go` (whoami, help, serve validation), `commands_test.go` (CRUD), `commands_query_test.go` (list, search, claim, comments, dependencies), `dotenv_test.go` (.env file parsing and fallback logic).
 
 **End-to-end tests (`e2e/`)** — Start a real server on a random port, run through complete workflows: create beads, claim work, add comments, manage dependencies, verify multi-agent conflict handling. The most comprehensive integration test.
 
@@ -96,6 +103,7 @@ Run specific layers:
 ```bash
 go test ./internal/model/...
 go test ./internal/store/...
+go test ./internal/project/...
 go test ./internal/server/...
 go test ./internal/cli/...
 go test ./e2e/...

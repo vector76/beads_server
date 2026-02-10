@@ -38,6 +38,9 @@ bs <command>                 # CLI client mode (talks to the server)
 - Reads/writes a single `beads.json` file (configurable via `--data-file` or `BS_DATA_FILE` env var)
 - File is written atomically on every mutation (write to temp file, then rename). Server can be killed at any time without data loss
 - If the data file does not exist on startup, it is created with an empty bead list
+- Supports multi-project mode via `--projects` flag or `BS_PROJECTS_FILE` env var. A JSON config file maps each project to its own token and data file. `--projects` and `--token` are mutually exclusive
+- An HTML dashboard at `/` shows bead status overview across all projects (unauthenticated)
+- Request logging middleware logs each request (method, path, status, duration) to stdout
 
 ### CLI Client
 
@@ -55,6 +58,7 @@ bs <command>                 # CLI client mode (talks to the server)
 | `BS_PORT` | Server | Listen port (default: `9999`) |
 | `BS_DATA_FILE` | Server | Path to data file (default: `./beads.json`) |
 | `BS_USER` | Client | Agent/user identity for `claim` and `comment` author (default: `anonymous`) |
+| `BS_PROJECTS_FILE` | Server | Path to multi-project config file (mutually exclusive with `BS_TOKEN` for server) |
 
 ## Data Model
 
@@ -290,7 +294,6 @@ The storage layer is unchanged — `blocked_by` stores all dependency IDs regard
 
 ## Out of Scope (for now)
 
-- HTML web UI (future)
 - Multi-user permissions / roles
 - Bead history / audit log
 - File attachments
