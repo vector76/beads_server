@@ -10,6 +10,11 @@ An agent-first issue tracker. A single executable (`bs`) that runs as either an 
 go build -o bs ./cmd/bs
 ```
 
+or on Windows
+```
+go build -o bs.exe ./cmd/bs
+```
+
 Or use the Makefile for cross-compiled binaries:
 
 ```bash
@@ -23,15 +28,31 @@ export BS_TOKEN=my-secret-token
 ./bs serve
 ```
 
+or
+```
+bs serve --token my-secret-token
+```
+
 The server listens on port 9999 by default and stores data in `./beads.json`.
 
 ### Configure the client
 
 ```bash
 export BS_TOKEN=my-secret-token
-export BS_USER=agent-1
+# export BS_USER=agent-1  # optional, only useful if multiple clients are conecting
 # export BS_URL=http://localhost:9999   # default, change if server is remote
 ```
+
+With a client in a docker container and a server on a Windows host, 
+```
+export BS_TOKEN=my-secret-token
+export BS_USER=agent-1
+export BS_URL=http://host.docker.internal:9999
+```
+
+Note, the `BS_USER` is optional and only necessary if multiple clients are 
+claiming work, in which case it can be helpful to distinguish their claimed items.
+There is no authentication at the user level, it's only an annotation.
 
 ### Basic workflow
 

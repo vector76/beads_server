@@ -7,3 +7,4 @@ TASK*.md
 beads.json
 build/
 .env
+/.claude
