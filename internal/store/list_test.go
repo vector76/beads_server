@@ -54,12 +54,12 @@ func TestListDefaultFilters(t *testing.T) {
 	s := setupListStore(t)
 
 	result := s.List(ListFilters{})
-	// Default: open + in_progress (excludes closed, deleted)
+	// Default: open + in_progress + not_ready (excludes closed, deleted)
 	if result.Total != 4 {
 		t.Errorf("expected 4 beads, got %d", result.Total)
 	}
 	for _, b := range result.Beads {
-		if b.Status != model.StatusOpen && b.Status != model.StatusInProgress {
+		if b.Status != model.StatusOpen && b.Status != model.StatusInProgress && b.Status != model.StatusNotReady {
 			t.Errorf("unexpected status %q in default list", b.Status)
 		}
 	}
@@ -304,6 +304,91 @@ func TestListReadyExcludesInProgress(t *testing.T) {
 	}
 	if result.Beads[0].ID != "bd-open0001" {
 		t.Errorf("expected bd-open0001, got %s", result.Beads[0].ID)
+	}
+}
+
+func TestListDefault_IncludesNotReady(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	b := newBeadWithFields("bd-nrdy0001", "Not ready bead", model.StatusNotReady, model.PriorityMedium, model.TypeTask, "", nil, nil, time.Now().UTC())
+	s.Create(b)
+
+	result := s.List(ListFilters{})
+	if result.Total != 1 {
+		t.Fatalf("expected 1 bead in default list, got %d", result.Total)
+	}
+	if result.Beads[0].ID != "bd-nrdy0001" {
+		t.Errorf("expected bd-nrdy0001, got %s", result.Beads[0].ID)
+	}
+}
+
+func TestListReady_ExcludesNotReady(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	b := newBeadWithFields("bd-nrdy0002", "Not ready bead", model.StatusNotReady, model.PriorityMedium, model.TypeTask, "", nil, nil, time.Now().UTC())
+	s.Create(b)
+
+	result := s.List(ListFilters{Ready: true})
+	if result.Total != 0 {
+		t.Errorf("expected 0 beads in ready list, got %d", result.Total)
+	}
+}
+
+func TestListAll_IncludesNotReady(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	b := newBeadWithFields("bd-nrdy0003", "Not ready bead", model.StatusNotReady, model.PriorityMedium, model.TypeTask, "", nil, nil, time.Now().UTC())
+	s.Create(b)
+
+	result := s.List(ListFilters{All: true})
+	if result.Total != 1 {
+		t.Fatalf("expected 1 bead with --all, got %d", result.Total)
+	}
+	if result.Beads[0].ID != "bd-nrdy0003" {
+		t.Errorf("expected bd-nrdy0003, got %s", result.Beads[0].ID)
+	}
+}
+
+func TestActiveBlocker_NotReadyBlocks(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	now := time.Now().UTC()
+	blockerB := newBeadWithFields("bd-nrblk001", "Not-ready blocker", model.StatusNotReady, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	dependentA := newBeadWithFields("bd-nrdep001", "Dependent on not-ready", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-nrblk001"}, now)
+	s.Create(blockerB)
+	s.Create(dependentA)
+
+	result := s.List(ListFilters{Ready: true})
+	for _, b := range result.Beads {
+		if b.ID == "bd-nrdep001" {
+			t.Error("dependent bead should not appear in ready list while blocker is not_ready")
+		}
+	}
+}
+
+func TestActiveBlocker_NotReadyThenClosed(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	now := time.Now().UTC()
+	blockerB := newBeadWithFields("bd-nrblk002", "Not-ready blocker", model.StatusNotReady, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	dependentA := newBeadWithFields("bd-nrdep002", "Dependent on not-ready", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-nrblk002"}, now)
+	s.Create(blockerB)
+	s.Create(dependentA)
+
+	closed := model.StatusClosed
+	if _, err := s.Update("bd-nrblk002", UpdateFields{Status: &closed}); err != nil {
+		t.Fatalf("failed to close blocker: %v", err)
+	}
+
+	result := s.List(ListFilters{Ready: true})
+	found := false
+	for _, b := range result.Beads {
+		if b.ID == "bd-nrdep002" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("dependent bead should appear in ready list after blocker is closed")
 	}
 }
 

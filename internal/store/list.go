@@ -24,7 +24,7 @@ type BeadSummary struct {
 
 // ListFilters specifies filtering criteria for listing beads.
 type ListFilters struct {
-	Statuses []model.Status   // Filter by status (OR); empty = default [open, in_progress]
+	Statuses []model.Status   // Filter by status (OR); empty = default [open, in_progress, not_ready]
 	Priority *model.Priority  // Filter by priority
 	Type     *model.BeadType  // Filter by type
 	Tags     []string         // Filter by tag (OR semantics)
@@ -58,7 +58,7 @@ func summaryFromBead(b model.Bead) BeadSummary {
 
 // isActiveBlocker returns true if the status counts as an active blocker.
 func isActiveBlocker(s model.Status) bool {
-	return s == model.StatusOpen || s == model.StatusInProgress
+	return s == model.StatusOpen || s == model.StatusInProgress || s == model.StatusNotReady
 }
 
 // List returns beads matching the given filters, sorted and paginated.
@@ -81,7 +81,7 @@ func (s *Store) List(filters ListFilters) ListResult {
 	if filters.Ready {
 		statuses = []model.Status{model.StatusOpen}
 	} else if !filters.All && len(statuses) == 0 {
-		statuses = []model.Status{model.StatusOpen, model.StatusInProgress}
+		statuses = []model.Status{model.StatusOpen, model.StatusInProgress, model.StatusNotReady}
 	}
 
 	statusSet := make(map[model.Status]bool, len(statuses))
