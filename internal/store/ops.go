@@ -211,7 +211,7 @@ func (s *Store) Clean(cutoff time.Time) (int, error) {
 }
 
 // Claim atomically sets a bead's status to in_progress and assignee to the given user.
-// Returns ConflictError if the bead is already claimed by a different user or in a terminal state.
+// Returns ConflictError if the bead is already claimed by a different user, in a terminal state, or not_ready.
 // Idempotent: claiming a bead already claimed by the same user succeeds.
 func (s *Store) Claim(beadID, user string) (model.Bead, error) {
 	s.mu.Lock()
@@ -222,11 +222,11 @@ func (s *Store) Claim(beadID, user string) (model.Bead, error) {
 		return model.Bead{}, &NotFoundError{Message: fmt.Sprintf("bead %s not found", beadID)}
 	}
 
-	// Check terminal states
+	// Check terminal states and not_ready
 	switch b.Status {
-	case model.StatusClosed, model.StatusDeleted:
+	case model.StatusClosed, model.StatusDeleted, model.StatusNotReady:
 		return model.Bead{}, &ConflictError{
-			Message: fmt.Sprintf("bead %s is %s and cannot be claimed", beadID, b.Status),
+			Message: fmt.Sprintf("bead %s has status %s and cannot be claimed", beadID, b.Status),
 		}
 	}
 

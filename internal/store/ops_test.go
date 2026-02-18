@@ -444,3 +444,34 @@ func TestCleanNothingToRemove(t *testing.T) {
 		t.Fatalf("expected 0 removed, got %d", removed)
 	}
 }
+
+func TestClaim_NotReadyRejected(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	now := time.Now().UTC()
+	b := newBeadWithFields("bd-clm00001", "Not ready", model.StatusNotReady, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	s.Create(b)
+
+	_, err := s.Claim("bd-clm00001", "agent-1")
+	if err == nil {
+		t.Fatal("expected error when claiming not_ready bead")
+	}
+
+	var conflictErr *ConflictError
+	if !errors.As(err, &conflictErr) {
+		t.Errorf("expected ConflictError, got %T: %v", err, err)
+	}
+}
+
+func TestDelete_NotReadySucceeds(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	now := time.Now().UTC()
+	b := newBeadWithFields("bd-del00001", "Not ready", model.StatusNotReady, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	s.Create(b)
+
+	_, err := s.Delete("bd-del00001")
+	if err != nil {
+		t.Errorf("expected no error deleting not_ready bead, got: %v", err)
+	}
+}
