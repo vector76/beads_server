@@ -13,6 +13,7 @@ const (
 	StatusInProgress Status = "in_progress"
 	StatusClosed     Status = "closed"
 	StatusDeleted    Status = "deleted"
+	StatusNotReady   Status = "not_ready"
 )
 
 var validStatuses = map[Status]bool{
@@ -20,6 +21,7 @@ var validStatuses = map[Status]bool{
 	StatusInProgress: true,
 	StatusClosed:     true,
 	StatusDeleted:    true,
+	StatusNotReady:   true,
 }
 
 func (s Status) Valid() bool {

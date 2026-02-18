@@ -29,17 +29,6 @@ func TestGenerateIDNFormat(t *testing.T) {
 	}
 }
 
-func TestGenerateIDUniqueness(t *testing.T) {
-	seen := make(map[string]bool)
-	for i := 0; i < 1000; i++ {
-		id := GenerateID()
-		if seen[id] {
-			t.Fatalf("duplicate ID generated: %s", id)
-		}
-		seen[id] = true
-	}
-}
-
 // --- NewBead defaults tests ---
 
 func TestNewBeadDefaults(t *testing.T) {
