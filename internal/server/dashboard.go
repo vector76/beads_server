@@ -17,6 +17,7 @@ type dashboardProject struct {
 	InProgress []store.BeadSummary
 	Open       []store.BeadSummary
 	Closed     []store.BeadSummary
+	NotReady   []store.BeadSummary
 }
 
 // dashboardData holds the full template data.
@@ -40,11 +41,14 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 				dp.Open = append(dp.Open, b)
 			case model.StatusClosed:
 				dp.Closed = append(dp.Closed, b)
+			case model.StatusNotReady:
+				dp.NotReady = append(dp.NotReady, b)
 			}
 		}
 		sortByUpdatedDesc(dp.InProgress)
 		sortByUpdatedDesc(dp.Open)
 		sortByUpdatedDesc(dp.Closed)
+		sortByUpdatedDesc(dp.NotReady)
 		data.Projects = append(data.Projects, dp)
 	}
 
@@ -138,8 +142,17 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <div class="counts">
   <div><strong>In Progress:</strong> {{len .InProgress}}</div>
   <div><strong>Open:</strong> {{len .Open}}</div>
+  <div><strong>Not Ready:</strong> {{len .NotReady}}</div>
   <div><strong>Closed:</strong> {{len .Closed}}</div>
 </div>
+
+{{if .NotReady}}
+<h3>Not Ready</h3>
+<table>
+<tr><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
+{{range .NotReady}}<tr><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
+{{end}}</table>
+{{end}}
 
 {{if .InProgress}}
 <h3>In Progress</h3>

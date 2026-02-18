@@ -365,3 +365,65 @@ func TestBeadDetailUsesTimeElements(t *testing.T) {
 		t.Errorf("expected datetime attribute %q in detail page HTML", expectedAttr)
 	}
 }
+
+func TestDashboardShowsNotReadySection(t *testing.T) {
+	srv := crudServer(t)
+
+	createViaAPI(t, srv, map[string]any{"title": "NR bead", "status": "not_ready"})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	body := w.Body.String()
+	if !strings.Contains(body, "Not Ready") {
+		t.Error("expected 'Not Ready' section header in dashboard HTML")
+	}
+	if !strings.Contains(body, "NR bead") {
+		t.Error("expected not_ready bead title in dashboard HTML")
+	}
+}
+
+func TestDashboardNotReadyCountInCounts(t *testing.T) {
+	srv := crudServer(t)
+
+	createViaAPI(t, srv, map[string]any{"title": "NR1", "status": "not_ready"})
+	createViaAPI(t, srv, map[string]any{"title": "NR2", "status": "not_ready"})
+	createViaAPI(t, srv, map[string]any{"title": "Open one"})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	if !strings.Contains(body, "<strong>Not Ready:</strong> 2") {
+		t.Errorf("expected 'Not Ready: 2' in counts, got body:\n%s", body)
+	}
+}
+
+func TestDashboardSortOrderNotReady(t *testing.T) {
+	srv := crudServer(t)
+
+	b1 := createViaAPI(t, srv, map[string]any{"title": "NR old", "status": "not_ready"})
+	time.Sleep(10 * time.Millisecond)
+	b2 := createViaAPI(t, srv, map[string]any{"title": "NR new", "status": "not_ready"})
+
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	body := w.Body.String()
+	posNew := strings.Index(body, b2.Title)
+	posOld := strings.Index(body, b1.Title)
+
+	if posNew == -1 || posOld == -1 {
+		t.Fatalf("expected both not_ready beads in HTML")
+	}
+	if posNew >= posOld {
+		t.Errorf("expected %q (newer) before %q (older) in Not Ready section", b2.Title, b1.Title)
+	}
+}
