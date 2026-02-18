@@ -1000,3 +1000,193 @@ func TestDependencyChain(t *testing.T) {
 		t.Errorf("after unlink, C resolved_blockers = %d, want 0", len(depsC.ResolvedBlockers))
 	}
 }
+
+// --- not_ready lifecycle tests ---
+
+func TestNotReady_AddWithFlag(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "agent-1")
+
+	out := run(t, "add", "Task", "--status", "not_ready")
+	b := parseBead(t, out)
+
+	if b.Status != model.StatusNotReady {
+		t.Errorf("expected status not_ready, got %q", b.Status)
+	}
+}
+
+func TestNotReady_InDefaultList(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "agent-1")
+
+	out := run(t, "add", "NR task", "--status", "not_ready")
+	b := parseBead(t, out)
+
+	out = run(t, "list")
+	result := parseListResult(t, out)
+
+	found := false
+	for _, s := range result.Beads {
+		if s.ID == b.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected not_ready bead %s in default list", b.ID)
+	}
+}
+
+func TestNotReady_NotInReadyList(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "agent-1")
+
+	out := run(t, "add", "NR task", "--status", "not_ready")
+	b := parseBead(t, out)
+
+	out = run(t, "list", "--ready")
+	result := parseListResult(t, out)
+
+	for _, s := range result.Beads {
+		if s.ID == b.ID {
+			t.Errorf("not_ready bead %s should not appear in --ready list", b.ID)
+		}
+	}
+}
+
+func TestNotReady_NotInMine(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "agent-1")
+
+	out := run(t, "add", "NR task", "--status", "not_ready")
+	b := parseBead(t, out)
+
+	out = run(t, "mine")
+	result := parseListResult(t, out)
+
+	for _, s := range result.Beads {
+		if s.ID == b.ID {
+			t.Errorf("not_ready bead %s should not appear in mine", b.ID)
+		}
+	}
+}
+
+func TestNotReady_ClaimFails(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "agent-1")
+
+	out := run(t, "add", "NR task", "--status", "not_ready")
+	b := parseBead(t, out)
+
+	err := runExpectErr(t, "claim", b.ID)
+	if err == nil {
+		t.Fatal("expected error claiming not_ready bead")
+	}
+}
+
+func TestNotReady_BlockerPreventsReady(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "agent-1")
+
+	// B is not_ready (acts as an active blocker)
+	out := run(t, "add", "B", "--status", "not_ready")
+	beadB := parseBead(t, out)
+
+	// A is open, blocked by B
+	out = run(t, "add", "A")
+	beadA := parseBead(t, out)
+	run(t, "link", beadA.ID, "--blocked-by", beadB.ID)
+
+	// A should not appear in --ready (blocked by not_ready B)
+	out = run(t, "list", "--ready")
+	result := parseListResult(t, out)
+	for _, s := range result.Beads {
+		if s.ID == beadA.ID {
+			t.Errorf("bead A should not be ready while blocked by not_ready B")
+		}
+	}
+
+	// Close B — A should now be unblocked and ready
+	run(t, "edit", beadB.ID, "--status", "closed")
+
+	out = run(t, "list", "--ready")
+	result = parseListResult(t, out)
+	found := false
+	for _, s := range result.Beads {
+		if s.ID == beadA.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("bead A should appear in --ready after blocker B is closed")
+	}
+}
+
+func TestNotReady_ReopenTransition(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "agent-1")
+
+	out := run(t, "add", "NR task", "--status", "not_ready")
+	b := parseBead(t, out)
+
+	out = run(t, "reopen", b.ID)
+	reopened := parseBead(t, out)
+
+	if reopened.Status != model.StatusOpen {
+		t.Errorf("expected status open after reopen, got %q", reopened.Status)
+	}
+}
+
+func TestNotReady_FullLifecycle(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "agent-1")
+
+	// Create B1 and B2 as not_ready
+	out := run(t, "add", "B1", "--status", "not_ready")
+	b1 := parseBead(t, out)
+	out = run(t, "add", "B2", "--status", "not_ready")
+	b2 := parseBead(t, out)
+
+	// Wire B2 blocked-by B1
+	run(t, "link", b2.ID, "--blocked-by", b1.ID)
+
+	// Transition B1 to open
+	run(t, "edit", b1.ID, "--status", "open")
+
+	// B2 is still not_ready — should not appear in --ready
+	out = run(t, "list", "--ready")
+	result := parseListResult(t, out)
+	for _, s := range result.Beads {
+		if s.ID == b2.ID {
+			t.Errorf("B2 (not_ready) should not appear in --ready list")
+		}
+	}
+
+	// Transition B2 to open
+	run(t, "edit", b2.ID, "--status", "open")
+
+	// Close B1
+	run(t, "close", b1.ID)
+
+	// B2 is now open and unblocked — should appear in --ready
+	out = run(t, "list", "--ready")
+	result = parseListResult(t, out)
+	found := false
+	for _, s := range result.Beads {
+		if s.ID == b2.ID {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("B2 should appear in --ready after B1 closed and B2 transitioned to open")
+	}
+
+	// Claim B2 — should succeed and become in_progress
+	out = run(t, "claim", b2.ID)
+	claimed := parseBead(t, out)
+	if claimed.Status != model.StatusInProgress {
+		t.Errorf("expected status in_progress after claim, got %q", claimed.Status)
+	}
+}
