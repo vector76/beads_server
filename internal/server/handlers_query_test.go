@@ -43,9 +43,9 @@ func TestListBeads_Default(t *testing.T) {
 	var result store.ListResult
 	json.NewDecoder(w.Body).Decode(&result)
 
-	// Default filter: open + in_progress only
+	// Default filter: open + in_progress + not_ready (closed excluded)
 	if result.Total != 2 {
-		t.Fatalf("expected 2 beads (open + in_progress), got %d", result.Total)
+		t.Fatalf("expected 2 beads (open + in_progress, no not_ready created), got %d", result.Total)
 	}
 }
 
@@ -345,6 +345,21 @@ func TestClaimBead_TerminalState(t *testing.T) {
 
 	if w.Code != http.StatusConflict {
 		t.Fatalf("expected 409 for terminal state, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestClaimBead_NotReadyRejected(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{"title": "Not ready", "status": "not_ready"})
+
+	req := authReq(http.MethodPost, "/api/v1/beads/"+created.ID+"/claim", map[string]any{
+		"user": "alice",
+	})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected 409 for not_ready bead, got %d: %s", w.Code, w.Body.String())
 	}
 }
 

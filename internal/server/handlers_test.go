@@ -422,6 +422,7 @@ func TestEditEpic_StatusNotReadyRejected(t *testing.T) {
 		t.Fatalf("expected 409, got %d: %s", w.Code, w.Body.String())
 	}
 }
+
 func TestDeleteBead_UnblockedField(t *testing.T) {
 	srv := crudServer(t)
 
