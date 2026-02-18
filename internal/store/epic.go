@@ -57,23 +57,37 @@ func (s *Store) deriveEpicStatus(epicID string) model.Status {
 		return model.StatusOpen
 	}
 
-	allOpen := true
 	allTerminal := true
+	hasInProgress := false
+	hasOpen := false
+	hasNotReady := false
 	for _, c := range children {
-		if c.Status != model.StatusOpen {
-			allOpen = false
-		}
 		if c.Status != model.StatusClosed && c.Status != model.StatusDeleted {
 			allTerminal = false
 		}
+		switch c.Status {
+		case model.StatusInProgress:
+			hasInProgress = true
+		case model.StatusOpen:
+			hasOpen = true
+		case model.StatusNotReady:
+			hasNotReady = true
+		}
 	}
 
-	if allOpen {
-		return model.StatusOpen
-	}
 	if allTerminal {
 		return model.StatusClosed
 	}
+	if hasInProgress {
+		return model.StatusInProgress
+	}
+	if hasOpen {
+		return model.StatusOpen
+	}
+	if hasNotReady {
+		return model.StatusNotReady
+	}
+	// fallback: mixed terminal + not_ready
 	return model.StatusInProgress
 }
 
@@ -302,7 +316,7 @@ func (s *Store) ValidateDeleteOnEpic(beadID string) error {
 	}
 	children := s.childrenOf(beadID)
 	for _, c := range children {
-		if c.Status == model.StatusOpen || c.Status == model.StatusInProgress {
+		if c.Status == model.StatusOpen || c.Status == model.StatusInProgress || c.Status == model.StatusNotReady {
 			return &ConflictError{Message: "cannot delete epic with open children; close or delete children first"}
 		}
 	}

@@ -92,8 +92,8 @@ func TestCreateWithParent_ReopensClosedEpic(t *testing.T) {
 	}
 
 	got, _ = s.Get(parent.ID)
-	if got.Status != model.StatusInProgress {
-		t.Errorf("expected epic to be in_progress after adding child, got %s", got.Status)
+	if got.Status != model.StatusOpen {
+		t.Errorf("expected epic to be open after adding open child (one closed + one open), got %s", got.Status)
 	}
 }
 
@@ -139,8 +139,8 @@ func TestDeriveEpicStatus_Mixed(t *testing.T) {
 	s.RecomputeParentStatus(c1.ID)
 
 	got, _ := s.Get(epic.ID)
-	if got.Status != model.StatusInProgress {
-		t.Errorf("expected in_progress, got %s", got.Status)
+	if got.Status != model.StatusOpen {
+		t.Errorf("expected open (one closed + one open child), got %s", got.Status)
 	}
 }
 
@@ -445,6 +445,137 @@ func TestValidateDeleteOnEpic_NotAnEpic(t *testing.T) {
 	}
 }
 
+func TestDeriveEpicStatus_AllNotReady(t *testing.T) {
+	s := tempStore(t)
+	epic := createBead(t, s, "Epic")
+	c1, _ := s.CreateWithParent(model.NewBead("C1"), epic.ID)
+	c2, _ := s.CreateWithParent(model.NewBead("C2"), epic.ID)
+
+	notReady := model.StatusNotReady
+	s.Update(c1.ID, UpdateFields{Status: &notReady})
+	s.RecomputeParentStatus(c1.ID)
+	s.Update(c2.ID, UpdateFields{Status: &notReady})
+	s.RecomputeParentStatus(c2.ID)
+
+	got, _ := s.Get(epic.ID)
+	if got.Status != model.StatusNotReady {
+		t.Errorf("expected not_ready, got %s", got.Status)
+	}
+}
+
+func TestDeriveEpicStatus_OpenAndNotReady(t *testing.T) {
+	s := tempStore(t)
+	epic := createBead(t, s, "Epic")
+	c1, _ := s.CreateWithParent(model.NewBead("C1"), epic.ID)
+	s.CreateWithParent(model.NewBead("C2"), epic.ID)
+
+	notReady := model.StatusNotReady
+	s.Update(c1.ID, UpdateFields{Status: &notReady})
+	s.RecomputeParentStatus(c1.ID)
+
+	got, _ := s.Get(epic.ID)
+	if got.Status != model.StatusOpen {
+		t.Errorf("expected open, got %s", got.Status)
+	}
+}
+
+func TestDeriveEpicStatus_InProgressAndNotReady(t *testing.T) {
+	s := tempStore(t)
+	epic := createBead(t, s, "Epic")
+	c1, _ := s.CreateWithParent(model.NewBead("C1"), epic.ID)
+	c2, _ := s.CreateWithParent(model.NewBead("C2"), epic.ID)
+
+	inProgress := model.StatusInProgress
+	s.Update(c1.ID, UpdateFields{Status: &inProgress})
+	s.RecomputeParentStatus(c1.ID)
+	notReady := model.StatusNotReady
+	s.Update(c2.ID, UpdateFields{Status: &notReady})
+	s.RecomputeParentStatus(c2.ID)
+
+	got, _ := s.Get(epic.ID)
+	if got.Status != model.StatusInProgress {
+		t.Errorf("expected in_progress, got %s", got.Status)
+	}
+}
+
+func TestDeriveEpicStatus_SomeClosedSomeNotReady(t *testing.T) {
+	s := tempStore(t)
+	epic := createBead(t, s, "Epic")
+	c1, _ := s.CreateWithParent(model.NewBead("C1"), epic.ID)
+	c2, _ := s.CreateWithParent(model.NewBead("C2"), epic.ID)
+
+	closed := model.StatusClosed
+	s.Update(c1.ID, UpdateFields{Status: &closed})
+	s.RecomputeParentStatus(c1.ID)
+	notReady := model.StatusNotReady
+	s.Update(c2.ID, UpdateFields{Status: &notReady})
+	s.RecomputeParentStatus(c2.ID)
+
+	got, _ := s.Get(epic.ID)
+	if got.Status != model.StatusNotReady {
+		t.Errorf("expected not_ready (mixed terminal+not_ready), got %s", got.Status)
+	}
+}
+
+func TestDeriveEpicStatus_AllClosed_WereNotReady(t *testing.T) {
+	s := tempStore(t)
+	epic := createBead(t, s, "Epic")
+	c1, _ := s.CreateWithParent(model.NewBead("C1"), epic.ID)
+	c2, _ := s.CreateWithParent(model.NewBead("C2"), epic.ID)
+
+	notReady := model.StatusNotReady
+	s.Update(c1.ID, UpdateFields{Status: &notReady})
+	s.RecomputeParentStatus(c1.ID)
+	s.Update(c2.ID, UpdateFields{Status: &notReady})
+	s.RecomputeParentStatus(c2.ID)
+
+	closed := model.StatusClosed
+	s.Update(c1.ID, UpdateFields{Status: &closed})
+	s.RecomputeParentStatus(c1.ID)
+	s.Update(c2.ID, UpdateFields{Status: &closed})
+	s.RecomputeParentStatus(c2.ID)
+
+	got, _ := s.Get(epic.ID)
+	if got.Status != model.StatusClosed {
+		t.Errorf("expected closed, got %s", got.Status)
+	}
+}
+
+func TestValidateDeleteOnEpic_NotReadyChild(t *testing.T) {
+	s := tempStore(t)
+	epic := createBead(t, s, "Epic")
+	c1, _ := s.CreateWithParent(model.NewBead("C1"), epic.ID)
+
+	notReady := model.StatusNotReady
+	s.Update(c1.ID, UpdateFields{Status: &notReady})
+
+	err := s.ValidateDeleteOnEpic(epic.ID)
+	if err == nil {
+		t.Fatal("expected error: epic has not_ready child")
+	}
+	var conflictErr *ConflictError
+	if !errors.As(err, &conflictErr) {
+		t.Errorf("expected ConflictError, got %T: %v", err, err)
+	}
+}
+
+func TestValidateDeleteOnEpic_AllClosedAfterNotReady(t *testing.T) {
+	s := tempStore(t)
+	epic := createBead(t, s, "Epic")
+	c1, _ := s.CreateWithParent(model.NewBead("C1"), epic.ID)
+
+	notReady := model.StatusNotReady
+	s.Update(c1.ID, UpdateFields{Status: &notReady})
+
+	closed := model.StatusClosed
+	s.Update(c1.ID, UpdateFields{Status: &closed})
+
+	err := s.ValidateDeleteOnEpic(epic.ID)
+	if err != nil {
+		t.Fatalf("unexpected error after closing child: %v", err)
+	}
+}
+
 func TestValidateLinkParentChild_ChildBlockedByParent(t *testing.T) {
 	s := tempStore(t)
 	epic := createBead(t, s, "Epic")
@@ -517,8 +648,8 @@ func TestRecomputeParentStatus_ReopeningChild(t *testing.T) {
 	s.RecomputeParentStatus(c1.ID)
 
 	got, _ = s.Get(epic.ID)
-	if got.Status != model.StatusInProgress {
-		t.Errorf("expected in_progress after reopening one child, got %s", got.Status)
+	if got.Status != model.StatusOpen {
+		t.Errorf("expected open after reopening one child (one open + one closed), got %s", got.Status)
 	}
 }
 
