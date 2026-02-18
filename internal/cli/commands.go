@@ -12,6 +12,7 @@ func newAddCmd() *cobra.Command {
 	var description string
 	var tags []string
 	var parentID string
+	var status string
 
 	cmd := &cobra.Command{
 		Use:   "add <title>",
@@ -41,6 +42,12 @@ func newAddCmd() *cobra.Command {
 			if parentID != "" {
 				body["parent_id"] = parentID
 			}
+			if status != "" {
+				if status != "open" && status != "not_ready" {
+					return fmt.Errorf("--status must be 'open' or 'not_ready'")
+				}
+				body["status"] = status
+			}
 
 			data, err := c.Do("POST", "/api/v1/beads", body)
 			if err != nil {
@@ -61,6 +68,7 @@ func newAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&description, "description", "", "bead description")
 	cmd.Flags().StringSliceVar(&tags, "tags", nil, "comma-separated tags")
 	cmd.Flags().StringVar(&parentID, "parent", "", "parent epic ID (creates a child bead)")
+	cmd.Flags().StringVar(&status, "status", "", "initial status (open or not_ready; default: open)")
 
 	return cmd
 }
@@ -156,7 +164,7 @@ func newEditCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&title, "title", "", "bead title")
-	cmd.Flags().StringVar(&status, "status", "", "status (open, in_progress, closed, deleted)")
+	cmd.Flags().StringVar(&status, "status", "", "status (open, not_ready, in_progress, closed, deleted)")
 	cmd.Flags().StringVar(&priority, "priority", "", "priority (critical, high, medium, low, none)")
 	cmd.Flags().StringVar(&beadType, "type", "", "bead type (bug, feature, task, chore)")
 	cmd.Flags().StringVar(&description, "description", "", "bead description")

@@ -89,7 +89,7 @@ func TestCreateBead_AllFields(t *testing.T) {
 	req := authReq(http.MethodPost, "/api/v1/beads", map[string]any{
 		"title":       "Full bead",
 		"description": "A detailed description",
-		"status":      "in_progress",
+		"status":      "open",
 		"priority":    "high",
 		"type":        "bug",
 		"tags":        []string{"backend", "urgent"},
@@ -108,7 +108,7 @@ func TestCreateBead_AllFields(t *testing.T) {
 	if b.Description != "A detailed description" {
 		t.Fatalf("description mismatch: %q", b.Description)
 	}
-	if b.Status != model.StatusInProgress {
+	if b.Status != model.StatusOpen {
 		t.Fatalf("status mismatch: %q", b.Status)
 	}
 	if b.Priority != model.PriorityHigh {
@@ -346,6 +346,82 @@ func TestUpdateBead_UnblockedField(t *testing.T) {
 	}
 }
 
+func TestCreateBead_StatusNotReady(t *testing.T) {
+	srv := crudServer(t)
+
+	req := authReq(http.MethodPost, "/api/v1/beads", map[string]any{
+		"title":  "x",
+		"status": "not_ready",
+	})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("expected 201, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var b model.Bead
+	json.NewDecoder(w.Body).Decode(&b)
+
+	if b.Status != model.StatusNotReady {
+		t.Errorf("expected status not_ready, got %q", b.Status)
+	}
+}
+
+func TestCreateBead_StatusInProgressRejected(t *testing.T) {
+	srv := crudServer(t)
+
+	req := authReq(http.MethodPost, "/api/v1/beads", map[string]any{
+		"title":  "x",
+		"status": "in_progress",
+	})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func TestEditBead_StatusNotReady(t *testing.T) {
+	srv := crudServer(t)
+
+	created := createViaAPI(t, srv, map[string]any{"title": "Editable"})
+
+	req := authReq(http.MethodPatch, "/api/v1/beads/"+created.ID, map[string]any{
+		"status": "not_ready",
+	})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+
+	var b model.Bead
+	json.NewDecoder(w.Body).Decode(&b)
+
+	if b.Status != model.StatusNotReady {
+		t.Errorf("expected status not_ready, got %q", b.Status)
+	}
+}
+
+func TestEditEpic_StatusNotReadyRejected(t *testing.T) {
+	srv := crudServer(t)
+
+	parent := createViaAPI(t, srv, map[string]any{"title": "Parent"})
+	createViaAPI(t, srv, map[string]any{"title": "child", "parent_id": parent.ID})
+
+	req := authReq(http.MethodPatch, "/api/v1/beads/"+parent.ID, map[string]any{
+		"status": "not_ready",
+	})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusConflict {
+		t.Fatalf("expected 409, got %d: %s", w.Code, w.Body.String())
+	}
+}
 func TestDeleteBead_UnblockedField(t *testing.T) {
 	srv := crudServer(t)
 

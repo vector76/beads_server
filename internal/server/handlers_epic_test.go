@@ -743,9 +743,9 @@ func TestDerivedStatus_MixedChildren(t *testing.T) {
 	w := httptest.NewRecorder()
 	srv.Router.ServeHTTP(w, req)
 
-	// Epic should be in_progress
+	// Epic should be open (one closed + one open child = open under derived-status rules)
 	got, _ := srv.Store.Get(epic.ID)
-	if got.Status != model.StatusInProgress {
-		t.Errorf("expected epic status in_progress, got %s", got.Status)
+	if got.Status != model.StatusOpen {
+		t.Errorf("expected epic status open, got %s", got.Status)
 	}
 }

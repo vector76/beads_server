@@ -11,13 +11,26 @@ import (
 	"github.com/yourorg/beads_server/internal/store"
 )
 
+// patchStatus is a test helper that updates the status of a bead via PATCH.
+func patchStatus(t *testing.T, srv *Server, id, status string) {
+	t.Helper()
+	req := authReq(http.MethodPatch, "/api/v1/beads/"+id, map[string]any{"status": status})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("patchStatus %s -> %s: expected 200, got %d: %s", id, status, w.Code, w.Body.String())
+	}
+}
+
 // --- List tests ---
 
 func TestListBeads_Default(t *testing.T) {
 	srv := crudServer(t)
 	createViaAPI(t, srv, map[string]any{"title": "Open bead"})
-	createViaAPI(t, srv, map[string]any{"title": "In progress", "status": "in_progress"})
-	createViaAPI(t, srv, map[string]any{"title": "Closed bead", "status": "closed"})
+	ip := createViaAPI(t, srv, map[string]any{"title": "In progress"})
+	patchStatus(t, srv, ip.ID, "in_progress")
+	closed := createViaAPI(t, srv, map[string]any{"title": "Closed bead"})
+	patchStatus(t, srv, closed.ID, "closed")
 
 	req := authReq(http.MethodGet, "/api/v1/beads", nil)
 	w := httptest.NewRecorder()
@@ -39,7 +52,8 @@ func TestListBeads_Default(t *testing.T) {
 func TestListBeads_StatusFilter(t *testing.T) {
 	srv := crudServer(t)
 	createViaAPI(t, srv, map[string]any{"title": "Open"})
-	createViaAPI(t, srv, map[string]any{"title": "Closed", "status": "closed"})
+	closed := createViaAPI(t, srv, map[string]any{"title": "Closed"})
+	patchStatus(t, srv, closed.ID, "closed")
 
 	req := authReq(http.MethodGet, "/api/v1/beads?status=closed", nil)
 	w := httptest.NewRecorder()
@@ -80,8 +94,10 @@ func TestListBeads_PriorityFilter(t *testing.T) {
 func TestListBeads_AllFlag(t *testing.T) {
 	srv := crudServer(t)
 	createViaAPI(t, srv, map[string]any{"title": "Open"})
-	createViaAPI(t, srv, map[string]any{"title": "Closed", "status": "closed"})
-	createViaAPI(t, srv, map[string]any{"title": "Also closed", "status": "closed"})
+	c1 := createViaAPI(t, srv, map[string]any{"title": "Closed"})
+	patchStatus(t, srv, c1.ID, "closed")
+	c2 := createViaAPI(t, srv, map[string]any{"title": "Also closed"})
+	patchStatus(t, srv, c2.ID, "closed")
 
 	req := authReq(http.MethodGet, "/api/v1/beads?all=true", nil)
 	w := httptest.NewRecorder()
@@ -318,7 +334,8 @@ func TestClaimBead_MissingUser(t *testing.T) {
 
 func TestClaimBead_TerminalState(t *testing.T) {
 	srv := crudServer(t)
-	created := createViaAPI(t, srv, map[string]any{"title": "Closed", "status": "closed"})
+	created := createViaAPI(t, srv, map[string]any{"title": "Closed"})
+	patchStatus(t, srv, created.ID, "closed")
 
 	req := authReq(http.MethodPost, "/api/v1/beads/"+created.ID+"/claim", map[string]any{
 		"user": "alice",
@@ -335,8 +352,10 @@ func TestClaimBead_TerminalState(t *testing.T) {
 
 func TestClean_DaysZeroRemovesAll(t *testing.T) {
 	srv := crudServer(t)
-	createViaAPI(t, srv, map[string]any{"title": "Closed 1", "status": "closed"})
-	createViaAPI(t, srv, map[string]any{"title": "Closed 2", "status": "closed"})
+	c1 := createViaAPI(t, srv, map[string]any{"title": "Closed 1"})
+	patchStatus(t, srv, c1.ID, "closed")
+	c2 := createViaAPI(t, srv, map[string]any{"title": "Closed 2"})
+	patchStatus(t, srv, c2.ID, "closed")
 	createViaAPI(t, srv, map[string]any{"title": "Open stays"})
 
 	req := authReq(http.MethodPost, "/api/v1/clean", map[string]any{"days": 0})
@@ -375,7 +394,8 @@ func TestClean_NegativeDaysRejected(t *testing.T) {
 
 func TestClean_KeepsRecentClosedBeads(t *testing.T) {
 	srv := crudServer(t)
-	createViaAPI(t, srv, map[string]any{"title": "Just closed", "status": "closed"})
+	c := createViaAPI(t, srv, map[string]any{"title": "Just closed"})
+	patchStatus(t, srv, c.ID, "closed")
 
 	req := authReq(http.MethodPost, "/api/v1/clean", map[string]any{"days": 5})
 	w := httptest.NewRecorder()
@@ -391,7 +411,8 @@ func TestClean_KeepsRecentClosedBeads(t *testing.T) {
 
 func TestClean_FractionalDays(t *testing.T) {
 	srv := crudServer(t)
-	createViaAPI(t, srv, map[string]any{"title": "Just closed", "status": "closed"})
+	c := createViaAPI(t, srv, map[string]any{"title": "Just closed"})
+	patchStatus(t, srv, c.ID, "closed")
 
 	// 0.5 days = 12 hours; a just-created bead should not be removed
 	req := authReq(http.MethodPost, "/api/v1/clean", map[string]any{"days": 0.5})
@@ -412,7 +433,8 @@ func TestClean_FractionalDays(t *testing.T) {
 
 func TestClean_FractionalDaysZero(t *testing.T) {
 	srv := crudServer(t)
-	createViaAPI(t, srv, map[string]any{"title": "Closed", "status": "closed"})
+	c := createViaAPI(t, srv, map[string]any{"title": "Closed"})
+	patchStatus(t, srv, c.ID, "closed")
 
 	// 0.0 should remove all closed beads (same as integer 0)
 	req := authReq(http.MethodPost, "/api/v1/clean", map[string]any{"days": 0.0})

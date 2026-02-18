@@ -71,6 +71,7 @@ type progressInfo struct {
 	InProgress int `json:"in_progress"`
 	Closed     int `json:"closed"`
 	Deleted    int `json:"deleted"`
+	NotReady   int `json:"not_ready"`
 }
 
 // beadDetailResponse is the enriched response for GET /beads/:id.
@@ -110,6 +111,10 @@ func (s *Server) handleCreateBead(w http.ResponseWriter, r *http.Request) {
 		b.Description = req.Description
 	}
 	if req.Status != "" {
+		if req.Status != model.StatusOpen && req.Status != model.StatusNotReady {
+			jsonError(w, "status at creation must be 'open' or 'not_ready'", http.StatusBadRequest)
+			return
+		}
 		b.Status = req.Status
 	}
 	if req.Priority != "" {
@@ -184,6 +189,8 @@ func (s *Server) handleGetBead(w http.ResponseWriter, r *http.Request) {
 				progress.Closed++
 			case model.StatusDeleted:
 				progress.Deleted++
+			case model.StatusNotReady:
+				progress.NotReady++
 			}
 			childList = append(childList, childSummary{
 				ID:       c.ID,

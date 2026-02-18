@@ -130,9 +130,11 @@ func TestDashboardContainsTimezoneScript(t *testing.T) {
 func TestDashboardSortOrderInProgress(t *testing.T) {
 	srv := crudServer(t)
 
-	b1 := createViaAPI(t, srv, map[string]any{"title": "IP old", "status": "in_progress", "assignee": "a"})
+	b1 := createViaAPI(t, srv, map[string]any{"title": "IP old", "assignee": "a"})
+	patchStatus(t, srv, b1.ID, "in_progress")
 	time.Sleep(10 * time.Millisecond)
-	b2 := createViaAPI(t, srv, map[string]any{"title": "IP new", "status": "in_progress", "assignee": "b"})
+	b2 := createViaAPI(t, srv, map[string]any{"title": "IP new", "assignee": "b"})
+	patchStatus(t, srv, b2.ID, "in_progress")
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()
@@ -183,9 +185,11 @@ func TestListReturnsSummaryUpdatedAt(t *testing.T) {
 func TestDashboardSortOrderClosed(t *testing.T) {
 	srv := crudServer(t)
 
-	b1 := createViaAPI(t, srv, map[string]any{"title": "Closed old", "status": string(model.StatusClosed)})
+	b1 := createViaAPI(t, srv, map[string]any{"title": "Closed old"})
+	patchStatus(t, srv, b1.ID, string(model.StatusClosed))
 	time.Sleep(10 * time.Millisecond)
-	b2 := createViaAPI(t, srv, map[string]any{"title": "Closed new", "status": string(model.StatusClosed)})
+	b2 := createViaAPI(t, srv, map[string]any{"title": "Closed new"})
+	patchStatus(t, srv, b2.ID, string(model.StatusClosed))
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	w := httptest.NewRecorder()

@@ -493,12 +493,12 @@ func TestEpicLifecycle(t *testing.T) {
 		t.Fatal("expected error closing epic")
 	}
 
-	// 9. Close child1 — epic should become in_progress
+	// 9. Close child1 — epic should become open (mixed: closed + open = open)
 	run(t, "close", child1.ID)
 	out = run(t, "show", epic.ID)
 	json.Unmarshal([]byte(out), &epicDetail)
-	if epicDetail["status"] != "in_progress" {
-		t.Errorf("expected epic status in_progress after closing one child, got %v", epicDetail["status"])
+	if epicDetail["status"] != "open" {
+		t.Errorf("expected epic status open after closing one child, got %v", epicDetail["status"])
 	}
 
 	// 10. Close child2 — epic should become closed
@@ -518,11 +518,11 @@ func TestEpicLifecycle(t *testing.T) {
 		t.Errorf("expected parent_id %s after move, got %s", epic.ID, moved.ParentID)
 	}
 
-	// Epic should reopen (new open child)
+	// Epic should reopen (new open child among closed children = open)
 	out = run(t, "show", epic.ID)
 	json.Unmarshal([]byte(out), &epicDetail)
-	if epicDetail["status"] != "in_progress" {
-		t.Errorf("expected epic status in_progress after adding child, got %v", epicDetail["status"])
+	if epicDetail["status"] != "open" {
+		t.Errorf("expected epic status open after adding child, got %v", epicDetail["status"])
 	}
 
 	// 12. Move out
@@ -664,11 +664,11 @@ func TestEpicClean(t *testing.T) {
 	childB2 := parseBead(t, out)
 	run(t, "close", childB2.ID)
 
-	// Verify epic B is in_progress (derived: mixed children)
+	// Verify epic B is open (derived: mixed children — closed + open = open)
 	out = run(t, "show", epicB.ID)
 	json.Unmarshal([]byte(out), &detail)
-	if detail["status"] != "in_progress" {
-		t.Fatalf("epicB: expected status in_progress, got %v", detail["status"])
+	if detail["status"] != "open" {
+		t.Fatalf("epicB: expected status open, got %v", detail["status"])
 	}
 
 	// Also create a standalone closed bead
@@ -692,7 +692,7 @@ func TestEpicClean(t *testing.T) {
 	json.Unmarshal([]byte(out), &resp)
 
 	// Expected: epicA (1) + its 2 children (2) + standalone (1) = 4
-	// Epic B and its children should NOT be cleaned (partial, in_progress)
+	// Epic B and its children should NOT be cleaned (partial, open — has open child)
 	if resp.Removed != 4 {
 		t.Fatalf("expected 4 removed (epicA unit + standalone), got %d", resp.Removed)
 	}
@@ -789,11 +789,11 @@ func TestEpicFullLifecycleWithClean(t *testing.T) {
 	// Close child1
 	run(t, "close", child1.ID)
 
-	// Query: epic should be in_progress (mixed: 1 closed, 2 open)
+	// Query: epic should be open (mixed: 1 closed, 2 open — closed + open = open)
 	out = run(t, "show", epic.ID)
 	json.Unmarshal([]byte(out), &detail)
-	if detail["status"] != "in_progress" {
-		t.Errorf("phase 2: expected epic status in_progress, got %v", detail["status"])
+	if detail["status"] != "open" {
+		t.Errorf("phase 2: expected epic status open, got %v", detail["status"])
 	}
 	progress = detail["progress"].(map[string]any)
 	if progress["closed"] != float64(1) {
