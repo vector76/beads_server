@@ -427,3 +427,128 @@ func TestDashboardSortOrderNotReady(t *testing.T) {
 		t.Errorf("expected %q (newer) before %q (older) in Not Ready section", b2.Title, b1.Title)
 	}
 }
+
+// linkBeads sets blocked as blocked-by blocker via the API.
+func linkBeads(t *testing.T, srv *Server, blockedID, blockerID string) {
+	t.Helper()
+	req := authReq(http.MethodPost, "/api/v1/beads/"+blockedID+"/link",
+		map[string]any{"blocked_by": blockerID})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("link: expected 200, got %d: %s", w.Code, w.Body.String())
+	}
+}
+
+func getDashboard(t *testing.T, srv *Server) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("dashboard: expected 200, got %d", w.Code)
+	}
+	return w.Body.String()
+}
+
+func TestDashboardBlockedIndicator_OpenSectionBlocked(t *testing.T) {
+	srv := crudServer(t)
+
+	blocker := createViaAPI(t, srv, map[string]any{"title": "Blocker open", "status": "open"})
+	blocked := createViaAPI(t, srv, map[string]any{"title": "Blocked open bead", "status": "open"})
+	linkBeads(t, srv, blocked.ID, blocker.ID)
+
+	body := getDashboard(t, srv)
+
+	// The lock emoji must appear in the Open section row for the blocked bead.
+	// We verify by checking that the row containing the blocked bead ID also contains the lock emoji.
+	blockedRow := `<td>🔒</td><td><a href="/bead/default/` + blocked.ID + `">`
+	if !strings.Contains(body, blockedRow) {
+		t.Errorf("expected lock emoji in Open section row for blocked bead, body:\n%s", body)
+	}
+}
+
+func TestDashboardBlockedIndicator_OpenSectionUnblocked(t *testing.T) {
+	srv := crudServer(t)
+
+	createViaAPI(t, srv, map[string]any{"title": "Unblocked open bead", "status": "open"})
+
+	body := getDashboard(t, srv)
+
+	if strings.Contains(body, "🔒") {
+		t.Errorf("expected no lock emoji in Open section for unblocked bead, body:\n%s", body)
+	}
+}
+
+func TestDashboardBlockedIndicator_NotReadySectionBlocked(t *testing.T) {
+	srv := crudServer(t)
+
+	blocker := createViaAPI(t, srv, map[string]any{"title": "Blocker NR", "status": "open"})
+	blocked := createViaAPI(t, srv, map[string]any{"title": "Blocked NR bead", "status": "not_ready"})
+	linkBeads(t, srv, blocked.ID, blocker.ID)
+
+	body := getDashboard(t, srv)
+
+	blockedRow := `<td>🔒</td><td><a href="/bead/default/` + blocked.ID + `">`
+	if !strings.Contains(body, blockedRow) {
+		t.Errorf("expected lock emoji in Not Ready section row for blocked bead, body:\n%s", body)
+	}
+}
+
+func TestDashboardBlockedIndicator_NotReadySectionUnblocked(t *testing.T) {
+	srv := crudServer(t)
+
+	createViaAPI(t, srv, map[string]any{"title": "Unblocked NR bead", "status": "not_ready"})
+
+	body := getDashboard(t, srv)
+
+	if strings.Contains(body, "🔒") {
+		t.Errorf("expected no lock emoji in Not Ready section for unblocked bead, body:\n%s", body)
+	}
+}
+
+func TestDashboardBlockedIndicator_InProgressNoLock(t *testing.T) {
+	srv := crudServer(t)
+
+	blocker := createViaAPI(t, srv, map[string]any{"title": "IP Blocker", "status": "open"})
+	target := createViaAPI(t, srv, map[string]any{"title": "IP target", "status": "open"})
+	linkBeads(t, srv, target.ID, blocker.ID)
+	patchStatus(t, srv, target.ID, "in_progress")
+
+	body := getDashboard(t, srv)
+
+	// The In Progress section must not contain the lock emoji.
+	// Bound the section to the next <h3> to avoid including the Open section.
+	ipStart := strings.Index(body, "<h3>In Progress</h3>")
+	if ipStart == -1 {
+		t.Fatal("In Progress section not found in dashboard")
+	}
+	nextH3 := strings.Index(body[ipStart+1:], "<h3>")
+	ipSection := body[ipStart:]
+	if nextH3 != -1 {
+		ipSection = body[ipStart : ipStart+1+nextH3]
+	}
+	if strings.Contains(ipSection, "🔒") {
+		t.Errorf("expected no lock emoji in In Progress section, got:\n%s", ipSection)
+	}
+}
+
+func TestDashboardBlockedIndicator_ClosedNoLock(t *testing.T) {
+	srv := crudServer(t)
+
+	blocker := createViaAPI(t, srv, map[string]any{"title": "Closed blocker", "status": "open"})
+	target := createViaAPI(t, srv, map[string]any{"title": "Closed target", "status": "open"})
+	linkBeads(t, srv, target.ID, blocker.ID)
+	patchStatus(t, srv, target.ID, string(model.StatusClosed))
+
+	body := getDashboard(t, srv)
+
+	closedStart := strings.Index(body, "<h3>Closed")
+	if closedStart == -1 {
+		t.Fatal("Closed section not found in dashboard")
+	}
+	closedSection := body[closedStart:]
+	if strings.Contains(closedSection, "🔒") {
+		t.Errorf("expected no lock emoji in Closed section, got:\n%s", closedSection)
+	}
+}

@@ -20,6 +20,7 @@ type BeadSummary struct {
 	Children    []BeadSummary  `json:"children,omitempty"`
 	ParentID    string         `json:"parent_id,omitempty"`
 	ParentTitle string         `json:"parent_title,omitempty"`
+	Blocked     bool           `json:"blocked,omitempty"`
 }
 
 // ListFilters specifies filtering criteria for listing beads.
@@ -44,7 +45,9 @@ type ListResult struct {
 	TotalPages int           `json:"total_pages"`
 }
 
-func summaryFromBead(b model.Bead) BeadSummary {
+// summaryFromBead builds a BeadSummary for b, including blocked status.
+// Caller must hold s.mu (at least RLock).
+func (s *Store) summaryFromBead(b model.Bead) BeadSummary {
 	return BeadSummary{
 		ID:        b.ID,
 		Title:     b.Title,
@@ -53,6 +56,7 @@ func summaryFromBead(b model.Bead) BeadSummary {
 		Type:      b.Type,
 		Assignee:  b.Assignee,
 		UpdatedAt: b.UpdatedAt,
+		Blocked:   s.hasActiveBlocker(b),
 	}
 }
 
@@ -119,7 +123,7 @@ func (s *Store) listFlat(filters ListFilters, statusSet map[model.Status]bool) L
 	page := paginate(matched, filters.Page, filters.PerPage)
 	summaries := make([]BeadSummary, len(page))
 	for i, b := range page {
-		sum := summaryFromBead(b)
+		sum := s.summaryFromBead(b)
 		if b.ParentID != "" {
 			sum.ParentID = b.ParentID
 			if parent, ok := s.beads[b.ParentID]; ok {
@@ -166,7 +170,7 @@ func (s *Store) listHierarchical(filters ListFilters, statusSet map[model.Status
 	page := paginate(topLevel, filters.Page, filters.PerPage)
 	summaries := make([]BeadSummary, len(page))
 	for i, b := range page {
-		sum := summaryFromBead(b)
+		sum := s.summaryFromBead(b)
 		children := s.childrenOf(b.ID)
 		if len(children) > 0 {
 			sum.IsEpic = true
@@ -177,7 +181,7 @@ func (s *Store) listHierarchical(filters ListFilters, statusSet map[model.Status
 				if c.Status == model.StatusDeleted {
 					continue
 				}
-				childSummaries = append(childSummaries, summaryFromBead(c))
+				childSummaries = append(childSummaries, s.summaryFromBead(c))
 			}
 			if childSummaries == nil {
 				childSummaries = []BeadSummary{}

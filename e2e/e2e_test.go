@@ -4,9 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/yourorg/beads_server/internal/cli"
@@ -1188,5 +1190,129 @@ func TestNotReady_FullLifecycle(t *testing.T) {
 	claimed := parseBead(t, out)
 	if claimed.Status != model.StatusInProgress {
 		t.Errorf("expected status in_progress after claim, got %q", claimed.Status)
+	}
+}
+
+// --- Visual blocked indicator E2E tests ---
+
+// fetchDashboard performs a GET on the dashboard root and returns the HTML body.
+func fetchDashboard(t *testing.T, serverURL string) string {
+	t.Helper()
+	r, err := http.NewRequest(http.MethodGet, serverURL+"/", nil)
+	if err != nil {
+		t.Fatalf("build dashboard request: %v", err)
+	}
+	res, err := http.DefaultClient.Do(r)
+	if err != nil {
+		t.Fatalf("fetch dashboard: %v", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		t.Fatalf("dashboard: expected 200, got %d", res.StatusCode)
+	}
+	body, err := io.ReadAll(res.Body)
+	if err != nil {
+		t.Fatalf("read dashboard body: %v", err)
+	}
+	return string(body)
+}
+
+// TestDashboardBlockedIndicator_OpenLifecycle tests the full stack:
+// create blocker + blocked bead, verify 🔒 appears in Open section,
+// close the blocker, verify 🔒 disappears.
+func TestDashboardBlockedIndicator_OpenLifecycle(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "vis-agent")
+
+	// 1. Create two beads: blocker and blocked
+	out := run(t, "add", "Viz blocker open")
+	blocker := parseBead(t, out)
+
+	out = run(t, "add", "Viz blocked open")
+	blocked := parseBead(t, out)
+
+	// 2. Link: blocked is blocked by blocker
+	run(t, "link", blocked.ID, "--blocked-by", blocker.ID)
+
+	// 3. Dashboard should show the lock emoji for the blocked bead in Open section
+	body := fetchDashboard(t, ts.URL)
+	lockedRow := `🔒</td><td><a href="/bead/default/` + blocked.ID + `">`
+	if !strings.Contains(body, lockedRow) {
+		t.Errorf("expected lock emoji in Open section for blocked bead %s; body:\n%s", blocked.ID, body)
+	}
+
+	// 4. Close the blocker
+	run(t, "close", blocker.ID)
+
+	// 5. Re-fetch dashboard — lock should be gone for the previously blocked bead
+	body = fetchDashboard(t, ts.URL)
+	if strings.Contains(body, lockedRow) {
+		t.Errorf("expected no lock emoji after blocker closed; body:\n%s", body)
+	}
+}
+
+// TestDashboardBlockedIndicator_NotReadyLifecycle tests the Not Ready section.
+func TestDashboardBlockedIndicator_NotReadyLifecycle(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "vis-agent-nr")
+
+	// 1. Create a blocker and a not_ready target blocked by it
+	out := run(t, "add", "NR blocker")
+	blocker := parseBead(t, out)
+
+	out = run(t, "add", "NR blocked target", "--status", "not_ready")
+	blocked := parseBead(t, out)
+
+	run(t, "link", blocked.ID, "--blocked-by", blocker.ID)
+
+	// 2. Dashboard should show lock in Not Ready section
+	body := fetchDashboard(t, ts.URL)
+	lockedRow := `🔒</td><td><a href="/bead/default/` + blocked.ID + `">`
+	if !strings.Contains(body, lockedRow) {
+		t.Errorf("expected lock emoji in Not Ready section for blocked bead %s; body:\n%s", blocked.ID, body)
+	}
+
+	// 3. Close the blocker — lock should disappear
+	run(t, "close", blocker.ID)
+
+	body = fetchDashboard(t, ts.URL)
+	if strings.Contains(body, lockedRow) {
+		t.Errorf("expected no lock emoji after blocker closed; body:\n%s", body)
+	}
+}
+
+// TestDashboardBlockedIndicator_InProgressExcluded confirms that the lock emoji
+// does NOT appear in the In Progress section even when the bead has active blockers.
+func TestDashboardBlockedIndicator_InProgressExcluded(t *testing.T) {
+	ts := startServer(t)
+	setEnv(t, ts.URL, "vis-agent-ip")
+
+	// Create a blocker and a bead that is in_progress but also has an active blocker
+	out := run(t, "add", "IP blocker")
+	blocker := parseBead(t, out)
+
+	out = run(t, "add", "IP target")
+	target := parseBead(t, out)
+
+	run(t, "link", target.ID, "--blocked-by", blocker.ID)
+	// Force in_progress by editing status (claim would fail if we think it's blocked,
+	// but the server allows in_progress assignment via edit)
+	run(t, "edit", target.ID, "--status", "in_progress", "--assignee", "vis-agent-ip")
+
+	body := fetchDashboard(t, ts.URL)
+
+	// The In Progress section must not contain the lock emoji
+	ipStart := strings.Index(body, "<h3>In Progress</h3>")
+	if ipStart == -1 {
+		t.Fatal("In Progress section not found in dashboard")
+	}
+	// Find end of In Progress section (next section header or end of body)
+	nextSection := strings.Index(body[ipStart+1:], "<h3>")
+	ipSection := body[ipStart:]
+	if nextSection != -1 {
+		ipSection = body[ipStart : ipStart+1+nextSection]
+	}
+	if strings.Contains(ipSection, "🔒") {
+		t.Errorf("expected no lock emoji in In Progress section; section:\n%s", ipSection)
 	}
 }

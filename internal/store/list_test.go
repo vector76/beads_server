@@ -417,3 +417,185 @@ func TestListReturnsSummaryFields(t *testing.T) {
 		t.Error("expected Type to be set")
 	}
 }
+
+// --- Blocked field in BeadSummary ---
+
+func findSummary(beads []BeadSummary, id string) *BeadSummary {
+	for i := range beads {
+		if beads[i].ID == id {
+			return &beads[i]
+		}
+	}
+	return nil
+}
+
+func TestSummaryBlocked_NoBlockers(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	now := time.Now().UTC()
+	b := newBeadWithFields("bd-nb0001", "No blockers", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	s.Create(b)
+
+	result := s.List(ListFilters{All: true})
+	sum := findSummary(result.Beads, "bd-nb0001")
+	if sum == nil {
+		t.Fatal("bead not found in list")
+	}
+	if sum.Blocked {
+		t.Error("expected Blocked=false for bead with no blockers")
+	}
+}
+
+func TestSummaryBlocked_ActiveBlocker(t *testing.T) {
+	now := time.Now().UTC()
+	// Test each active status in its own store to avoid cross-contamination.
+	for _, status := range []model.Status{model.StatusOpen, model.StatusInProgress, model.StatusNotReady} {
+		status := status
+		t.Run(string(status), func(t *testing.T) {
+			s, _ := Load(tempPath(t))
+			blocker := newBeadWithFields("bd-blkr-0001", "Blocker", status, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+			target := newBeadWithFields("bd-tgt-00001", "Target", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-blkr-0001"}, now)
+			s.Create(blocker)
+			s.Create(target)
+
+			result := s.List(ListFilters{All: true})
+			sum := findSummary(result.Beads, "bd-tgt-00001")
+			if sum == nil {
+				t.Fatal("target bead not found in list")
+			}
+			if !sum.Blocked {
+				t.Errorf("expected Blocked=true when blocker has status %q", status)
+			}
+		})
+	}
+}
+
+func TestSummaryBlocked_ResolvedBlocker(t *testing.T) {
+	now := time.Now().UTC()
+	// Both closed and deleted statuses are resolved and must not count as active.
+	for _, status := range []model.Status{model.StatusClosed, model.StatusDeleted} {
+		status := status
+		t.Run(string(status), func(t *testing.T) {
+			s, _ := Load(tempPath(t))
+			blocker := newBeadWithFields("bd-rblk00001", "Resolved blocker", status, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+			target := newBeadWithFields("bd-rtgt00001", "Target", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-rblk00001"}, now)
+			s.Create(blocker)
+			s.Create(target)
+
+			result := s.List(ListFilters{All: true})
+			sum := findSummary(result.Beads, "bd-rtgt00001")
+			if sum == nil {
+				t.Fatal("target bead not found in list")
+			}
+			if sum.Blocked {
+				t.Errorf("expected Blocked=false when only blocker has status %q", status)
+			}
+		})
+	}
+}
+
+func TestSummaryBlocked_ParentEpicActiveBlocker(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	now := time.Now().UTC()
+	// blocker → epic ← child; child should inherit blocked status from epic
+	blocker := newBeadWithFields("bd-epblk001", "Epic blocker", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	epic := model.Bead{
+		ID: "bd-epic0001", Title: "Epic", Status: model.StatusOpen,
+		Priority: model.PriorityMedium, Type: model.TypeFeature,
+		BlockedBy: []string{"bd-epblk001"},
+		Comments:  []model.Comment{}, CreatedAt: now, UpdatedAt: now,
+	}
+	child := model.Bead{
+		ID: "bd-epch0001", Title: "Child of epic", Status: model.StatusOpen,
+		Priority: model.PriorityMedium, Type: model.TypeTask,
+		ParentID: "bd-epic0001",
+		Comments: []model.Comment{}, CreatedAt: now, UpdatedAt: now,
+	}
+	s.Create(blocker)
+	s.Create(epic)
+	s.Create(child)
+
+	// Use flat mode (assignee filter) so child appears as a top-level summary.
+	assignee := ""
+	result := s.List(ListFilters{Assignee: &assignee, All: true})
+	sum := findSummary(result.Beads, "bd-epch0001")
+	if sum == nil {
+		t.Fatal("child bead not found in flat list")
+	}
+	if !sum.Blocked {
+		t.Error("expected Blocked=true: child inherits active blocker from parent epic")
+	}
+}
+
+func TestSummaryBlocked_GrandparentDoesNotPropagate(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	now := time.Now().UTC()
+	// grandparent epic has a blocker; parent epic has no blocker; child should NOT be blocked
+	blocker := newBeadWithFields("bd-gpblk001", "Grandparent blocker", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	grandparent := model.Bead{
+		ID: "bd-gp000001", Title: "Grandparent epic", Status: model.StatusOpen,
+		Priority: model.PriorityMedium, Type: model.TypeFeature,
+		BlockedBy: []string{"bd-gpblk001"},
+		Comments:  []model.Comment{}, CreatedAt: now, UpdatedAt: now,
+	}
+	parent := model.Bead{
+		ID: "bd-pr000001", Title: "Parent epic", Status: model.StatusOpen,
+		Priority: model.PriorityMedium, Type: model.TypeFeature,
+		ParentID: "bd-gp000001",
+		Comments: []model.Comment{}, CreatedAt: now, UpdatedAt: now,
+	}
+	child := model.Bead{
+		ID: "bd-ch000001", Title: "Child", Status: model.StatusOpen,
+		Priority: model.PriorityMedium, Type: model.TypeTask,
+		ParentID: "bd-pr000001",
+		Comments: []model.Comment{}, CreatedAt: now, UpdatedAt: now,
+	}
+	s.Create(blocker)
+	s.Create(grandparent)
+	s.Create(parent)
+	s.Create(child)
+
+	assignee := ""
+	result := s.List(ListFilters{Assignee: &assignee, All: true})
+	sum := findSummary(result.Beads, "bd-ch000001")
+	if sum == nil {
+		t.Fatal("child bead not found in flat list")
+	}
+	if sum.Blocked {
+		t.Error("expected Blocked=false: grandparent blocker should not propagate past immediate parent")
+	}
+}
+
+func TestSummaryBlocked_MixedResolvedDirectAndActiveParent(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	now := time.Now().UTC()
+	// child has a resolved direct blocker but parent epic has an active blocker → blocked = true
+	resolvedBlocker := newBeadWithFields("bd-rblk0001", "Resolved blocker", model.StatusClosed, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	activeEpicBlocker := newBeadWithFields("bd-aeblk001", "Active epic blocker", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	epic := model.Bead{
+		ID: "bd-mxepic01", Title: "Epic with active blocker", Status: model.StatusOpen,
+		Priority: model.PriorityMedium, Type: model.TypeFeature,
+		BlockedBy: []string{"bd-aeblk001"},
+		Comments:  []model.Comment{}, CreatedAt: now, UpdatedAt: now,
+	}
+	child := model.Bead{
+		ID: "bd-mxch0001", Title: "Child with resolved blocker", Status: model.StatusOpen,
+		Priority: model.PriorityMedium, Type: model.TypeTask,
+		ParentID:  "bd-mxepic01",
+		BlockedBy: []string{"bd-rblk0001"},
+		Comments:  []model.Comment{}, CreatedAt: now, UpdatedAt: now,
+	}
+	s.Create(resolvedBlocker)
+	s.Create(activeEpicBlocker)
+	s.Create(epic)
+	s.Create(child)
+
+	assignee := ""
+	result := s.List(ListFilters{Assignee: &assignee, All: true})
+	sum := findSummary(result.Beads, "bd-mxch0001")
+	if sum == nil {
+		t.Fatal("child bead not found in flat list")
+	}
+	if !sum.Blocked {
+		t.Error("expected Blocked=true: parent epic has active blocker even though direct blocker is resolved")
+	}
+}
