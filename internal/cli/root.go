@@ -4,7 +4,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var version = "0.1.0"
+var version = "dev"
 
 // NewRootCmd creates the root cobra command for the bs CLI.
 func NewRootCmd() *cobra.Command {
