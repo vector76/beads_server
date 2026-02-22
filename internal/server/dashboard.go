@@ -201,6 +201,7 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
 		display := t.UTC().Format("2006-01-02 15:04")
 		return template.HTML(`<time datetime="` + utc + `">` + display + `</time>`)
 	},
+	"renderMarkdown": renderMarkdown,
 }).Parse(`<!DOCTYPE html>
 <html>
 <head>
@@ -214,7 +215,7 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
   .back { margin-bottom: 1em; }
   .meta { display: flex; gap: 1.5em; flex-wrap: wrap; margin-bottom: 1em; }
   .meta div { padding: 0.4em 0.8em; border-radius: 4px; background: #f0f0f0; }
-  .description { white-space: pre-wrap; background: #fafafa; border: 1px solid #eee; padding: 1em; border-radius: 4px; margin-bottom: 1em; }
+  .description { background: #fafafa; border: 1px solid #eee; padding: 1em; border-radius: 4px; margin-bottom: 1em; }
   .tags span { display: inline-block; background: #e1ecf4; padding: 0.2em 0.6em; border-radius: 3px; margin-right: 0.4em; font-size: 0.9em; }
   table { border-collapse: collapse; width: 100%; margin-bottom: 1em; }
   th, td { text-align: left; padding: 0.35em 0.7em; border: 1px solid #ddd; }
@@ -249,7 +250,7 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
 {{if .Bead.Description}}
 <div class="section">
 <h3>Description</h3>
-<div class="description">{{.Bead.Description}}</div>
+<div class="description">{{renderMarkdown .Bead.Description}}</div>
 </div>
 {{end}}
 
