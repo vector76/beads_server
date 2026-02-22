@@ -28,11 +28,11 @@ model  <--  store  <--  server  <--  cli
 
 **`internal/model`** — Pure data types. Defines the `Bead` struct, `Comment` struct, and enums (`Status`, `Priority`, `BeadType`). Provides ID generation helpers (`bd-` + 4–8 random alphanumeric chars) and JSON validation for enum types. No I/O, no state.
 
-**`internal/store`** — The persistence and business logic layer. Holds all beads in a `map[string]model.Bead` protected by a `sync.RWMutex`. Provides CRUD with collision-aware ID generation, exact ID resolution, list/filter/sort/paginate, search, claim, comments, and dependency management (link/unlink/deps with cycle detection). Every mutation writes to disk atomically.
+**`internal/store`** — The persistence and business logic layer. Holds all beads in a `map[string]model.Bead` protected by a `sync.RWMutex`. Provides CRUD with collision-aware ID generation, exact ID resolution, list/filter/sort/paginate, search, claim, comments, dependency management (link/unlink/deps with cycle detection), and epic operations (parent/child hierarchy, derived status computation, move-into/move-out). Every mutation writes to disk atomically.
 
 **`internal/project`** — Multi-project configuration. Defines `ProjectEntry` (name, token, data file) and `LoadProjectsFile()` to parse and validate a JSON projects config. No I/O beyond reading the config file.
 
-**`internal/server`** — HTTP layer. Creates a chi router with request logging and bearer token auth middleware. Provides a `StoreProvider` interface that maps a bearer token to the correct store — `singleStoreProvider` for single-project mode, `multiStoreProvider` for multi-project mode. Includes an HTML dashboard at `/` showing bead status across all projects. Maps REST endpoints to store operations. Translates between HTTP request/response formats and store types. No business logic beyond request parsing and response formatting.
+**`internal/server`** — HTTP layer. Creates a chi router with request logging and bearer token auth middleware. Provides a `StoreProvider` interface that maps a bearer token to the correct store — `singleStoreProvider` for single-project mode, `multiStoreProvider` for multi-project mode. Includes an HTML dashboard at `/` showing bead status across all projects, and a bead detail page at `/bead/{project}/{id}` showing full bead details with markdown-rendered description, active/resolved blockers, and comments. Maps REST endpoints to store operations. Translates between HTTP request/response formats and store types. No business logic beyond request parsing and response formatting.
 
 **`internal/cli`** — User-facing CLI built with cobra. The `serve` command starts the HTTP server directly (single-project mode with `--token`, or multi-project mode with `--projects`). All other commands are thin HTTP clients: they read `BS_URL`/`BS_TOKEN`/`BS_USER` from environment variables (with `.env` file fallback), call the server's REST API, and print the JSON response to stdout.
 
@@ -61,7 +61,7 @@ CLI (cobra command)
 The store uses a single `sync.RWMutex`:
 
 - **Reads** (`Get`, `Resolve`, `List`, `Search`, `Deps`) acquire `RLock` — concurrent reads are allowed
-- **Writes** (`Create`, `Update`, `Delete`, `Claim`, `AddComment`, `Link`, `Unlink`) acquire `Lock` — serialized, one at a time
+- **Writes** (`Create`, `Update`, `Delete`, `Claim`, `AddComment`, `Link`, `Unlink`, `Clean`) acquire `Lock` — serialized, one at a time
 
 Every write persists to disk immediately via atomic write (write to temp file in the same directory, then `os.Rename`). If the write fails, the in-memory state is rolled back to the previous value.
 
@@ -84,15 +84,15 @@ On startup, the store loads this file into the in-memory map. If the file doesn'
 
 ## Test Organization
 
-Tests are organized in four layers, matching the package structure:
+Tests are organized in five layers (plus end-to-end), matching the package structure:
 
 **Unit tests (`internal/model/`)** — Validate JSON serialization round-trips, enum validation, ID format, and default values. Fast, no I/O.
 
-**Store tests (`internal/store/`)** — Test all store operations against a real temp file. Cover CRUD, collision-aware ID generation, exact ID resolution, filtering, pagination, search, claim semantics (idempotent, conflict, terminal state), dependency operations (link, unlink, cycle detection), and unblocked computation. Four test files mirror the four source files (`store_test.go`, `list_test.go`, `ops_test.go`, `deps_test.go`).
+**Store tests (`internal/store/`)** — Test all store operations against a real temp file. Cover CRUD, collision-aware ID generation, exact ID resolution, filtering, pagination, search, claim semantics (idempotent, conflict, terminal state), dependency operations (link, unlink, cycle detection), unblocked computation, and epic operations (parent/child creation, move, derived status, epic-aware clean). Five test files mirror the five source files (`store_test.go`, `list_test.go`, `ops_test.go`, `deps_test.go`, `epic_test.go`).
 
 **Project tests (`internal/project/`)** — Validate project config loading and validation: non-empty fields, no duplicate names or tokens.
 
-**Server tests (`internal/server/`)** — Use `httptest.NewServer` with a real store (temp file). Test each HTTP handler: request parsing, response format, status codes, auth middleware, and store provider routing. Four test files mirror the four source files (`server_test.go`, `handlers_test.go`, `handlers_query_test.go`, `handlers_deps_test.go`), plus `provider_test.go` for provider implementations.
+**Server tests (`internal/server/`)** — Use `httptest.NewServer` with a real store (temp file). Test each HTTP handler: request parsing, response format, status codes, auth middleware, store provider routing, epic constraints, dashboard rendering, and markdown conversion. Eight test files: `server_test.go`, `handlers_test.go`, `handlers_query_test.go`, `handlers_deps_test.go`, `handlers_epic_test.go`, `provider_test.go`, `dashboard_test.go`, `markdown_test.go`.
 
 **CLI tests (`internal/cli/`)** — Start a test HTTP server, set environment variables, execute cobra commands, and verify the JSON output. Test the full CLI-to-server round-trip without a real network. Four test files: `cli_test.go` (whoami, help, serve validation), `commands_test.go` (CRUD), `commands_query_test.go` (list, search, claim, comments, dependencies), `dotenv_test.go` (.env file parsing and fallback logic).
 

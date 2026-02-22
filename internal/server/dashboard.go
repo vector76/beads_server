@@ -23,6 +23,7 @@ type dashboardProject struct {
 // dashboardData holds the full template data.
 type dashboardData struct {
 	Projects []dashboardProject
+	Theme    string
 }
 
 func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
@@ -52,6 +53,10 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 		data.Projects = append(data.Projects, dp)
 	}
 
+	if c, err := r.Cookie("theme"); err == nil && (c.Value == "dark" || c.Value == "light") {
+		data.Theme = c.Value
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := dashboardTmpl.Execute(w, data); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
@@ -64,6 +69,7 @@ type beadDetailData struct {
 	Bead             model.Bead
 	ActiveBlockers   []model.Bead
 	ResolvedBlockers []model.Bead
+	Theme            string
 }
 
 func (s *Server) handleBeadDetail(w http.ResponseWriter, r *http.Request) {
@@ -97,6 +103,10 @@ func (s *Server) handleBeadDetail(w http.ResponseWriter, r *http.Request) {
 		ResolvedBlockers: deps.ResolvedBlockers,
 	}
 
+	if c, err := r.Cookie("theme"); err == nil && (c.Value == "dark" || c.Value == "light") {
+		data.Theme = c.Value
+	}
+
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	if err := beadDetailTmpl.Execute(w, data); err != nil {
 		http.Error(w, "template error", http.StatusInternalServerError)
@@ -117,7 +127,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 		return template.HTML(`<time datetime="` + utc + `">` + display + `</time>`)
 	},
 }).Parse(`<!DOCTYPE html>
-<html>
+<html{{if .Theme}} data-theme="{{.Theme}}"{{end}}>
 <head>
 <meta charset="utf-8">
 <title>Beads Dashboard</title>
@@ -226,7 +236,7 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
 	},
 	"renderMarkdown": renderMarkdown,
 }).Parse(`<!DOCTYPE html>
-<html>
+<html{{if .Theme}} data-theme="{{.Theme}}"{{end}}>
 <head>
 <meta charset="utf-8">
 <title>{{.Bead.ID}} — {{.Bead.Title}}</title>

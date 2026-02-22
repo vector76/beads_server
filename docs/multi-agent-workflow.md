@@ -28,6 +28,7 @@ This handles the common case where an agent crashes or is restarted mid-task. Th
 |------------|---------------------------|-----------------------|
 | `open` (no assignee) | N/A | Succeeds |
 | `in_progress` | Succeeds (idempotent) | 409 Conflict |
+| `not_ready` | 409 Conflict | 409 Conflict |
 | Terminal (`closed`/`deleted`) | 409 Conflict | 409 Conflict |
 
 When two agents race to claim the same bead, exactly one will succeed. The other receives a 409 and should pick a different bead.
@@ -44,7 +45,7 @@ bs list --tag backend            # tagged work
 bs search "authentication"       # keyword search
 ```
 
-`list --ready` is the most common starting point. It returns beads that are `open` and not blocked by any `open` or `in_progress` bead, sorted by priority.
+`list --ready` is the most common starting point. It returns beads that are `open` and not blocked by any active (`open`, `not_ready`, or `in_progress`) bead, sorted by priority.
 
 ## Using Comments for Progress
 
@@ -92,7 +93,7 @@ bs deps bd-m9n8o7p6
 ```
 
 Returns:
-- `active_blockers` — beads that are still `open` or `in_progress` (work must complete first)
+- `active_blockers` — beads that are still `open`, `not_ready`, or `in_progress` (work must complete first)
 - `resolved_blockers` — beads in the `blocked_by` list that are already `closed`/`deleted`
 - `blocks` — beads that are waiting on this bead
 

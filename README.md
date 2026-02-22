@@ -39,7 +39,7 @@ The server listens on port 9999 by default and stores data in `./beads.json`.
 
 ```bash
 export BS_TOKEN=my-secret-token
-# export BS_USER=agent-1  # optional, only useful if multiple clients are conecting
+# export BS_USER=agent-1  # optional, only useful if multiple clients are connecting
 # export BS_URL=http://localhost:9999   # default, change if server is remote
 ```
 
@@ -73,6 +73,9 @@ bs close bd-a1b2c3d4
 | `BS_PORT` | Server | Listen port (default: `9999`) |
 | `BS_DATA_FILE` | Server | Path to data file (default: `./beads.json`) |
 | `BS_USER` | Client | Agent/user identity for `claim` and `comment` (default: `anonymous`) |
+| `BS_PROJECTS_FILE` | Server | Path to multi-project config file (mutually exclusive with `BS_TOKEN`) |
+
+The client also reads `BS_TOKEN`, `BS_USER`, and `BS_URL` from a `.env` file in the current directory when the corresponding env var is not set. Env vars take precedence over the file.
 
 ## CLI Commands
 
@@ -80,20 +83,20 @@ bs close bd-a1b2c3d4
 
 | Command | Description |
 |---------|-------------|
-| `bs serve` | Start the server (`--port`, `--token`, `--data-file` flags available) |
+| `bs serve` | Start the server (`--port`, `--token`, `--data-file`, `--projects` flags available) |
 
 ### Client
 
 | Command | Description |
 |---------|-------------|
 | `bs whoami` | Print current agent identity (local, no server contact) |
-| `bs add "title"` | Create a bead (`--type`, `--priority`, `--description`, `--tags`) |
+| `bs add "title"` | Create a bead (`--type`, `--priority`, `--description`, `--tags`, `--parent <id>`, `--status open\|not_ready`) |
 | `bs show <id>` | Show full bead details |
 | `bs edit <id>` | Modify fields (`--title`, `--status`, `--priority`, `--type`, `--add-tag`, `--remove-tag`, ...) |
 | `bs close <id>` | Set status to `closed` |
 | `bs reopen <id>` | Set status to `open` |
 | `bs delete <id>` | Soft-delete (sets status to `deleted`, reversible with `reopen`) |
-| `bs list` | List active beads (`--all`, `--ready`, `--status`, `--priority`, `--type`, `--tag`, `--assignee`) |
+| `bs list` | List active beads — default statuses: `open`, `in_progress`, `not_ready` (`--all`, `--ready`, `--status`, `--priority`, `--type`, `--tag`, `--assignee`) |
 | `bs search "query"` | Substring search across title and description |
 | `bs claim <id>` | Atomically set status to `in_progress` and assignee to `BS_USER` |
 | `bs mine` | List beads assigned to current `BS_USER` that are `in_progress` |
@@ -101,9 +104,13 @@ bs close bd-a1b2c3d4
 | `bs link <id> --blocked-by <other>` | Add a dependency |
 | `bs unlink <id> --blocked-by <other>` | Remove a dependency |
 | `bs deps <id>` | Show dependencies (active blockers, resolved blockers, blocks) |
-| `bs clean` | Purge old closed/deleted beads (`--days N`, default 5; `--days 0` removes all) |
+| `bs clean` | Purge old closed/deleted beads (`--days N`, default 5; `--days 0` removes all; `--hours N` alternative) |
+| `bs move <id> --into <epic-id>` | Move a bead into an epic (set parent) |
+| `bs move <id> --out` | Detach a bead from its parent epic |
 
 All output is pretty-printed JSON. IDs are short by default (`bd-` + 4 chars) and must be specified exactly and in full.
+
+Hidden aliases (not shown in `bs --help`): `bs create` = `bs add`, `bs resolve` = `bs close`.
 
 ## Running Tests
 
@@ -126,8 +133,10 @@ go test ./e2e/...                # end-to-end
 
 | Document | Description |
 |----------|-------------|
+| [Design Goals](docs/design-goals.md) | Project goals, design philosophy, and out-of-scope items |
 | [Architecture](docs/architecture.md) | Package structure, data flow, concurrency model, test organization, design decisions |
 | [Data Model](docs/data-model.md) | Bead/Comment fields, enums, defaults, ID format, status transitions |
 | [API Reference](docs/api-reference.md) | REST endpoints with request/response examples |
 | [Multi-Agent Workflow](docs/multi-agent-workflow.md) | Claim/resume patterns, conflict handling, dependency-driven coordination |
-| [PRD](docs/PRD.md) | Original product requirements and specification |
+| [Multi-Project](docs/multi-project.md) | Hosting multiple isolated projects on a single server instance |
+| [Epics](docs/epics.md) | Parent/child epic hierarchy — data model, commands, and behavior |

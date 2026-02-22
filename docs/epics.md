@@ -6,11 +6,11 @@ Epics introduce a single level of parent/child containment to the bead model. A 
 
 Epic-ness is a **structural role**, not a type. A bead is an epic because it has children, not because someone labeled it. The `type` field (bug, feature, task, chore) remains orthogonal and still describes *what kind of work* the effort represents. A feature request decomposed into subtasks is still a feature — it just happens to also be an epic.
 
-> **Note:** The current `BeadType` enum includes an `epic` value. With structural epic detection, this value becomes redundant and potentially misleading. It should be removed from the enum when this feature is implemented. Epic-ness is determined solely by the presence of children.
+> **Note:** The `BeadType` enum does not include an `epic` value. Epic-ness is determined solely by the presence of children, not by type label.
 
-## Data Model Change
+## Data Model
 
-One new optional field on the `Bead` struct:
+The `Bead` struct has one additional optional field:
 
 | Field | Type | Default | Description |
 |-------|------|---------|-------------|
@@ -40,30 +40,32 @@ An epic's lifecycle status is **derived from its children's statuses** and canno
 
 | Children states | Epic status |
 |---|---|
-| All `open` | `open` |
 | All terminal (`closed` or `deleted`) | `closed` |
-| Any other combination | `in_progress` |
+| Any child `in_progress` | `in_progress` |
+| Any child `open`, none `in_progress` | `open` |
+| All non-terminal children are `not_ready` | `not_ready` |
 
-Spelled out:
-- If every child is `open` (no work has started), the epic is `open`.
-- If every child is in a terminal state (`closed` or `deleted`), the epic is `closed`.
-- If some children are `closed` and others are `open` (partial progress, even if no child is currently active), the epic is `in_progress` — because work *has happened* at the epic level.
-- If any child is `in_progress`, the epic is `in_progress`.
-- The `deleted` status of a child is treated like `closed` for derivation purposes (it represents work that is no longer active).
+Spelled out, in priority order:
+- If every child is terminal (`closed` or `deleted`), the epic is `closed`.
+- Otherwise, if any child is `in_progress`, the epic is `in_progress`.
+- Otherwise, if any child is `open`, the epic is `open`.
+- Otherwise (all non-terminal children are `not_ready`), the epic is `not_ready`.
+
+The `deleted` status is treated as terminal for derivation purposes.
 
 ### What Epics Do Not Have
 
-- **No assignee.** Epics are containers, not work items. Individual children are claimed and assigned. An epic has no assignee field (or rather, the field is always empty and `claim` is rejected on epics).
+- **No assignee.** Epics are containers, not work items. Individual children are claimed and assigned. The `claim` command is rejected on epics. The `assignee` field technically exists on the bead struct but has no meaningful role for epics.
 - **No manual status control.** Commands like `close`, `reopen`, and `edit --status` are rejected on epics. The status is always a projection of children.
 
 ### Auto-Transitions
 
 Any mutation that changes a child's status triggers a recomputation of the parent epic's derived status. Important cases:
 
-- **Closing the last active child** auto-closes the epic. The CLI outputs feedback: e.g., `Epic bd-xxxx is now closed (4/4 children closed)`.
-- **Reopening a child** in a fully-closed epic transitions the epic back to `in_progress` (if other children remain closed) or `open` (if it was the only child).
-- **Adding a new child** to a fully-closed epic reopens it (the new child is `open`, so the epic becomes `in_progress`).
-- **Deleting a child** triggers recomputation. If after the soft-delete all remaining children are in a terminal state, the epic closes. If the only remaining child is removed entirely (detached), the bead reverts to a regular bead with status set to `open` (see "Detachment" below).
+- **Closing the last active child** auto-closes the epic. The server recomputes and persists the epic's new `closed` status; the CLI response reflects the updated child, not the epic.
+- **Reopening a child** in a fully-closed epic transitions the epic to `open` (because at least one child is now `open` and none are `in_progress`).
+- **Adding a new child** to a fully-closed epic transitions the epic to `open` (the new child is `open`, which satisfies the "any open" rule).
+- **Deleting a child** triggers recomputation. If after the soft-delete all remaining children are in a terminal state, the epic closes.
 
 ## Blocking Semantics
 
@@ -105,7 +107,7 @@ The existing circular dependency check follows explicit `blocked_by` chains and 
 | `bs close` | **Rejected** (derived) | Normal (triggers parent recomputation) |
 | `bs reopen` | **Rejected** (derived) | Normal (triggers parent recomputation) |
 | `bs edit --status` | **Rejected** (derived) | Normal (triggers parent recomputation) |
-| `bs edit` (other fields) | Allowed (title, description, priority, tags, type) | Normal |
+| `bs edit` (other fields) | Allowed (title, description, priority, type, assignee, tags) | Normal |
 | `bs comment` | Allowed | Allowed |
 | `bs link` / `bs unlink` | Allowed | Allowed |
 | `bs delete` | **Only if all children are closed or deleted** | Normal (triggers parent recomputation) |
@@ -156,7 +158,7 @@ If a bead is already a child of one epic and is moved into a different epic, thi
 
 **Deleting a leaf bead that has a parent:** The child is soft-deleted normally. The parent epic's derived status recomputes. No confirmation prompt (consistent with existing CLI behavior — the application is never interactive).
 
-**Deleting an epic:** Only permitted if all children are in a terminal state (`closed` or `deleted`). If any child is `open` or `in_progress`, the delete is rejected with an error: `"cannot delete epic with open children; close or delete children first"`.
+**Deleting an epic:** Only permitted if all children are in a terminal state (`closed` or `deleted`). If any child is `open`, `in_progress`, or `not_ready`, the delete is rejected with an error: `"cannot delete epic with open children; close or delete children first"`.
 
 ### Showing an Epic
 
@@ -176,7 +178,8 @@ If a bead is already a child of one epic and is moved into a different epic, thi
     "open": 1,
     "in_progress": 1,
     "closed": 3,
-    "deleted": 0
+    "deleted": 0,
+    "not_ready": 0
   },
   "children": [
     {"id": "bd-c3d4", "title": "Design token schema", "status": "closed", "priority": "medium", "type": "task", "assignee": ""},
@@ -188,13 +191,16 @@ If a bead is already a child of one epic and is moved into a different epic, thi
   "tags": [],
   "blocked_by": [],
   "assignee": "",
+  "parent_id": "",
   "comments": [],
   "created_at": "2025-01-15T10:00:00Z",
   "updated_at": "2025-01-20T14:30:00Z"
 }
 ```
 
-The `progress` and `children` fields are included only when the bead has children (is an epic). The `progress` object always satisfies `total = open + in_progress + closed + deleted`.
+The `progress` and `children` fields are included only when the bead has children (is an epic). The `progress` object always satisfies `total = open + in_progress + not_ready + closed + deleted`.
+
+Children in the show response include only `id`, `title`, `status`, `priority`, `type`, and `assignee`. This is a narrower set than the list response (which uses `BeadSummary` and also includes `updated_at` and `blocked`).
 
 ### Deleted Children Visibility
 
@@ -228,7 +234,7 @@ In both cases, deleted children still affect the epic's **derived status** (trea
 }
 ```
 
-The `parent_id` and `parent_title` fields are included only when the bead has a parent. `parent_title` is a convenience field to avoid a second lookup; it is not stored, just resolved at query time.
+`parent_id` is always present in the response (as `""` for top-level beads). `parent_title` is included only when the bead has a parent — it is a convenience field to avoid a second lookup; it is not stored, just resolved at query time.
 
 ### Listing
 
@@ -240,14 +246,15 @@ The `parent_id` and `parent_title` fields are included only when the bead has a 
     {
       "id": "bd-a1b2", "title": "Auth rewrite", "status": "in_progress",
       "priority": "high", "type": "feature", "assignee": "",
+      "updated_at": "2025-01-20T14:30:00Z",
       "is_epic": true,
       "children": [
-        {"id": "bd-c3d4", "title": "Design token schema", "status": "closed", "priority": "medium", "type": "task", "assignee": ""},
-        {"id": "bd-i9j0", "title": "Update login endpoint", "status": "in_progress", "priority": "high", "type": "task", "assignee": "alice"},
-        {"id": "bd-k1l2", "title": "Fix token refresh race", "status": "open", "priority": "medium", "type": "bug", "assignee": ""}
+        {"id": "bd-c3d4", "title": "Design token schema", "status": "closed", "priority": "medium", "type": "task", "assignee": "", "updated_at": "..."},
+        {"id": "bd-i9j0", "title": "Update login endpoint", "status": "in_progress", "priority": "high", "type": "task", "assignee": "alice", "updated_at": "..."},
+        {"id": "bd-k1l2", "title": "Fix token refresh race", "status": "open", "priority": "medium", "type": "bug", "assignee": "", "updated_at": "..."}
       ]
     },
-    {"id": "bd-m3n4", "title": "Fix CSS on mobile", "status": "open", "priority": "low", "type": "bug", "assignee": ""}
+    {"id": "bd-m3n4", "title": "Fix CSS on mobile", "status": "open", "priority": "low", "type": "bug", "assignee": "", "updated_at": "2025-01-15T08:00:00Z"}
   ],
   "page": 1,
   "per_page": 100,
@@ -262,15 +269,17 @@ Pagination counts **top-level items only** (epics and standalone beads). Childre
 
 **`bs list --ready`** shows only leaf beads that are `open` and not blocked (either directly or via an inherited epic-level blocker). Epics never appear in ready listings — they are containers, not claimable work items. Ready children appear as **flat top-level items** (not nested under their epic) with `parent_id` and `parent_title` fields for context. This differs from the hierarchical `bs list` format because `--ready` answers "what can I claim right now" — structure is secondary to actionability.
 
-**`bs mine`** shows only leaf beads assigned to the current user that are `in_progress`. Epics never appear — they have no assignee. Like `--ready`, children appear as **flat top-level items** with `parent_id` and `parent_title` fields for context.
+**`bs mine`** shows only leaf beads assigned to the current user that are `in_progress`. Epics never appear — they are containers and are excluded from assignee-filtered views. Like `--ready`, children appear as **flat top-level items** with `parent_id` and `parent_title` fields for context.
 
 ### Filtering
 
-Filters (`--type`, `--priority`, `--tag`, `--assignee`, `--status`) apply to **top-level items** in the hierarchical listing:
+Filters (`--type`, `--priority`, `--tag`, `--status`) apply to **top-level items** in the hierarchical listing:
 
 - An epic matches a filter if the **epic itself** matches. If an epic matches, all of its children are included in the nested listing regardless of whether individual children match.
 - An epic does **not** match just because one of its children matches. Children are not independently filterable through `bs list` — they exist only as nested items under their parent.
 - Standalone beads (no parent) are filtered normally.
+
+The `--assignee` filter is different: it switches to flat mode (like `--ready`), returning only leaf beads that match the assignee. Epics are excluded entirely, and matching children appear as flat top-level items with `parent_id` and `parent_title` for context.
 
 For example, `bs list --type bug` shows standalone bugs and epics whose type is "bug" (with all their children). It does not show a feature epic just because it contains a child of type "bug."
 
@@ -278,29 +287,29 @@ If a use case requires finding specific children across epics, `bs search` is th
 
 ### Search
 
-`bs search` searches across **all non-deleted beads** — epics, children, and standalone beads — matching against title and description as it does today. Deleted beads are excluded from search results regardless of whether they are children (even though deleted children are visible in epic `children` arrays, search follows the existing rule of excluding deleted beads). Results are returned as a flat list. Each result includes `parent_id` and `parent_title` when the matching bead is a child, providing context about which epic it belongs to. Epics that match appear with their `is_epic` flag but without their full children listing (use `bs show` for that).
+`bs search` searches across **all non-deleted beads** — epics, children, and standalone beads — matching against title and description. Deleted beads are excluded from search results regardless of whether they are children (even though deleted children are visible in epic `children` arrays, search follows the existing rule of excluding deleted beads). Results are returned as a flat list. Each result includes `parent_id` and `parent_title` when the matching bead is a child, providing context about which epic it belongs to. Epics that match appear with their `is_epic` flag but without their full children listing (use `bs show` for that).
 
 ### Cleaning
 
 `bs clean` treats closed epics as a unit:
 
 - A **fully closed epic** (all children closed or deleted) is eligible for cleaning. When cleaned, the epic and all its children are hard-deleted together. The age threshold is evaluated against the **most recent `updated_at`** across the epic and all of its children. If any child was updated recently (e.g., closed yesterday), the entire unit is retained even if the epic itself was last updated long ago.
-- An **in-progress epic** (some children still open or in-progress) is never cleaned, even if some of its children are individually closed and old enough. Partially-complete epics retain all their children. This prevents confusing state where an epic references children that no longer exist.
+- A **non-closed epic** (some children still `open`, `in_progress`, or `not_ready`) is never cleaned, even if some of its children are individually closed and old enough. Partially-complete epics retain all their children. This prevents confusing state where an epic references children that no longer exist.
 - **Standalone closed beads** (no parent) are cleaned as before — no behavior change.
 
-## REST API Changes
+## REST API
 
-No new endpoints are needed. The existing endpoints are extended:
+No dedicated endpoints are needed. The existing endpoints handle all epic operations:
 
 - `POST /api/v1/beads` — accepts optional `parent_id` field to create a child directly. Validates nesting constraints (target exists, is not deleted, is not itself a child).
 - `GET /api/v1/beads` — response includes hierarchical grouping (children nested under epics) and `is_epic` indicators.
-- `GET /api/v1/beads/:id` — response includes `progress` (with `deleted` count), `children` (including deleted children), and `is_epic` fields when the bead is an epic. Includes `parent_id` and `parent_title` when the bead is a child.
+- `GET /api/v1/beads/:id` — response includes `progress` (with `deleted` count), `children` (including deleted children), and `is_epic` fields when the bead is an epic. Includes `parent_title` when the bead is a child. (`parent_id` is always present in the response.)
 - `PATCH /api/v1/beads/:id` — rejects status changes on epics (returns 409). Accepts `parent_id` to move a bead into an epic, or `parent_id: ""` to detach from a parent. Validates nesting constraints on `parent_id` changes. The `bs move` CLI command maps to this endpoint.
 - `POST /api/v1/beads/:id/claim` — rejects on epics. Returns 409 with error message.
-- `DELETE /api/v1/beads/:id` — on epics, rejects if any child is open/in_progress. Returns 409 with error message.
+- `DELETE /api/v1/beads/:id` — on epics, rejects if any child is `open`, `in_progress`, or `not_ready`. Returns 409 with error message.
 - `POST /api/v1/clean` — applies unit-based cleaning for epics as described above.
 
-## New CLI Commands
+## CLI Commands
 
 | Command | Description |
 |---|---|
@@ -320,7 +329,7 @@ Operations that the system **rejects** with an error:
 | `close` on epic | Bead has children | Cannot close an epic directly; close its children |
 | `reopen` on epic | Bead has children | Cannot reopen an epic directly; reopen individual children |
 | `edit --status` on epic | Bead has children | Cannot set status on an epic; status is derived from children |
-| `delete` epic with open children | Any child is open/in_progress | Cannot delete epic with open children; close or delete children first |
+| `delete` epic with open children | Any child is `open`, `in_progress`, or `not_ready` | Cannot delete epic with open children; close or delete children first |
 | `add --parent` targeting a child | Target has a `parent_id` | Cannot nest epics; target is already a child of another bead |
 | `move --into` targeting a child | Target has a `parent_id` | Cannot nest epics; target is already a child of another bead |
 | `move --into` when source has children | Source bead has children | Cannot nest epics; bead already has children |

@@ -751,3 +751,87 @@ func TestDashboardSectionExpandedByDefault(t *testing.T) {
 		t.Error("expected dashboard sections to be open (expanded) by default")
 	}
 }
+
+func TestDashboardThemeCookieDark(t *testing.T) {
+	srv := crudServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `<html data-theme="dark">`) {
+		t.Error(`expected <html data-theme="dark"> when theme=dark cookie is set`)
+	}
+}
+
+func TestDashboardThemeCookieLight(t *testing.T) {
+	srv := crudServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "light"})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `<html data-theme="light">`) {
+		t.Error(`expected <html data-theme="light"> when theme=light cookie is set`)
+	}
+}
+
+func TestDashboardThemeNoCookie(t *testing.T) {
+	srv := crudServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if strings.Contains(w.Body.String(), "<html data-theme=") {
+		t.Error("expected no data-theme attribute on <html> when no cookie is set")
+	}
+}
+
+func TestDashboardThemeInvalidCookie(t *testing.T) {
+	srv := crudServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "invalid"})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if strings.Contains(w.Body.String(), "<html data-theme=") {
+		t.Error("expected no data-theme attribute on <html> when cookie value is unrecognized")
+	}
+}
+
+func TestBeadDetailThemeCookieDark(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{"title": "Theme detail test", "status": "open"})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `<html data-theme="dark">`) {
+		t.Error(`expected <html data-theme="dark"> in bead detail response when theme=dark cookie is set`)
+	}
+}
+
+func TestBeadDetailThemeNoCookie(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{"title": "Theme detail no-cookie test", "status": "open"})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if strings.Contains(w.Body.String(), "<html data-theme=") {
+		t.Error("expected no data-theme attribute on <html> in bead detail response when no cookie is set")
+	}
+}

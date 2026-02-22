@@ -14,6 +14,7 @@ A bead is an issue or task in the tracker.
 | `type` | BeadType | `task` | Category |
 | `tags` | []string | `[]` | Free-form labels |
 | `blocked_by` | []string | `[]` | IDs of beads this one depends on |
+| `parent_id` | string | `""` | ID of parent epic; empty if top-level |
 | `assignee` | string | `""` | Who is working on this |
 | `comments` | []Comment | `[]` | Discussion thread |
 | `created_at` | ISO 8601 | auto-set | Creation timestamp (UTC) |
@@ -44,12 +45,15 @@ Lifecycle state of a bead.
 
 | Value | Description |
 |-------|-------------|
-| `open` | Default. Available for work |
+| `open` | Default. Available for work; can be claimed |
+| `not_ready` | Parked or not yet actionable. Cannot be claimed. Counts as an active blocker |
 | `in_progress` | Claimed by an agent, actively being worked on |
 | `closed` | Closed (completed, decided, or won't fix) |
 | `deleted` | Soft-deleted. Excluded from default queries, recoverable via `reopen` |
 
-**Terminal states:** `closed`, `deleted`. Beads in terminal states cannot be claimed. Terminal states do not count as active blockers.
+**Terminal states:** `closed`, `deleted`. Beads in terminal states cannot be claimed and do not count as active blockers.
+
+**Active states:** `open`, `not_ready`, `in_progress`. These count as active blockers and appear in the default `bs list`.
 
 ### Priority
 
@@ -74,32 +78,43 @@ Category of work.
 | `bug` | Defect to fix |
 | `feature` | New functionality |
 | `task` | Default. General work item |
-| `epic` | Large body of work |
 | `chore` | Maintenance or housekeeping |
+
+Note: there is no `epic` type. A bead becomes an epic structurally — by having children — not by type label. See [epics.md](epics.md).
 
 ## Stored vs. Computed Fields
 
 **Stored on disk:**
-- All bead fields including `blocked_by` (the full list of dependency IDs, regardless of their status)
+- All bead fields including `blocked_by` (the full list of dependency IDs, regardless of their status) and `parent_id`
+
+**Recomputed on mutation and persisted:**
+- Epic status — when a child's status changes, the parent epic's status is recomputed from the children and written to disk immediately (see [epics.md](epics.md) for derivation rules)
+
+**Computed during mutations (returned in response, not stored):**
+- `unblocked` — when a bead reaches a terminal state, the server finds beads that referenced it as a blocker and now have no remaining active blockers, and includes them in the mutation response
 
 **Computed at query time:**
 - `blocks` — inverse of `blocked_by`, found by scanning all beads. Only non-deleted beads are included
-- Active vs. non-active blockers — the `deps` endpoint splits `blocked_by` into active (status `open`/`in_progress`) and resolved (all other statuses)
-- `unblocked` — when a bead reaches a terminal state, the server finds beads that referenced it as a blocker and now have no remaining active blockers, and includes them in the response
-- "Ready" status — a bead is ready when it is `open` and has no active blockers. Used by `list --ready`
+- `is_epic` — true if any bead has this bead's ID as its `parent_id`
+- `parent_title` — title of the parent bead, resolved at query time for child beads
+- `blocked` — true if the bead has any active blocker (own or inherited from parent epic); included in list/search summaries. Omitted from the response when false (only present when the bead is blocked)
+- Active vs. non-active blockers — the `deps` endpoint splits `blocked_by` into active (status `open`/`not_ready`/`in_progress`) and resolved (all other statuses)
+- "Ready" status — a bead is ready when it is `open` and has no active blockers (own or inherited). Used by `list --ready`
 
 ## Status Transitions
 
-Any status can transition to any other status via `edit --status`. There are no enforced state machine constraints. However, specific commands imply specific transitions:
+Any status can transition to any other status via `edit --status` (except on epics, whose status is derived). There are no enforced state machine constraints for leaf beads. However, specific commands imply specific transitions:
 
 | Command | Transition |
 |---------|------------|
-| `claim` | `open` (or `in_progress` by same user) -> `in_progress` + sets assignee |
-| `close` | any -> `closed` |
-| `reopen` | any -> `open` (including from `deleted`, which restores the bead) |
-| `delete` | any -> `deleted` |
+| `claim` | `open` (or `in_progress` by same user) → `in_progress` + sets assignee |
+| `close` | any → `closed` |
+| `reopen` | any → `open` (including from `deleted`, which restores the bead) |
+| `delete` | any → `deleted` |
 
-`claim` is the only command with guards: it rejects if the bead is in a terminal state or already claimed by a different user.
+`claim` has guards: it rejects if the bead is in a terminal state, has status `not_ready`, is an epic, or is already claimed by a different user.
+
+`delete` has a guard on epics: it rejects if any child has status `open`, `in_progress`, or `not_ready`. See [epics.md](epics.md) for details.
 
 ## Hard Delete (Clean)
 
@@ -110,3 +125,4 @@ The `clean` command permanently removes beads from the store (hard delete), unli
 - `--days 0` removes all closed/deleted beads regardless of age
 - Adding a comment to a closed/deleted bead resets the clock (updates `updated_at`)
 - Removed beads are gone permanently and cannot be recovered
+- Epics are cleaned as a unit; see [epics.md](epics.md) for details
