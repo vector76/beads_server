@@ -552,3 +552,109 @@ func TestDashboardBlockedIndicator_ClosedNoLock(t *testing.T) {
 		t.Errorf("expected no lock emoji in Closed section, got:\n%s", closedSection)
 	}
 }
+
+func TestBeadDetailRendersMarkdown(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{
+		"title":       "Markdown test",
+		"description": "# My Heading\n- list item\n`code span`",
+	})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, "<h1>") {
+		t.Error("expected <h1> element from markdown heading")
+	}
+	if !strings.Contains(body, "<li>") {
+		t.Error("expected <li> element from markdown list")
+	}
+	if !strings.Contains(body, "<code>") {
+		t.Error("expected <code> element from markdown code span")
+	}
+}
+
+func TestBeadDetailXSSEscaped(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{
+		"title":       "XSS test",
+		"description": "<script>alert(1)</script>",
+	})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	body := w.Body.String()
+	if strings.Contains(body, "<script>alert") {
+		t.Error("XSS: raw <script> tag must not appear unescaped in detail page")
+	}
+}
+
+func TestBeadDetailNoPreWrapOnDescription(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{
+		"title":       "Pre-wrap test",
+		"description": "some text",
+	})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	body := w.Body.String()
+	if strings.Contains(body, "white-space: pre-wrap; background") {
+		t.Error("description container must not use white-space: pre-wrap")
+	}
+}
+
+func TestBeadDetailCommentsPreserveWhitespace(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{"title": "Comment whitespace test"})
+	commentReq := authReq(http.MethodPost, "/api/v1/beads/"+created.ID+"/comments",
+		map[string]any{"author": "bob", "text": "line1\nline2\n<b>not bold</b>"})
+	cw := httptest.NewRecorder()
+	srv.Router.ServeHTTP(cw, commentReq)
+	if cw.Code != http.StatusCreated {
+		t.Fatalf("add comment: expected 201, got %d", cw.Code)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	body := w.Body.String()
+	if !strings.Contains(body, "white-space: pre-wrap") {
+		t.Error("expected white-space: pre-wrap for .comment-text rule")
+	}
+	if !strings.Contains(body, "line1") || !strings.Contains(body, "line2") {
+		t.Error("expected comment lines to appear in body")
+	}
+	if !strings.Contains(body, "&lt;b&gt;") {
+		t.Error("expected HTML in comment to be escaped, not rendered")
+	}
+}
+
+func TestBeadDetailDashboardUnaffected(t *testing.T) {
+	srv := crudServer(t)
+	createViaAPI(t, srv, map[string]any{"title": "# Not A Heading", "status": "open"})
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	body := w.Body.String()
+	if !strings.Contains(body, "# Not A Heading") {
+		t.Error("expected markdown-syntax title to appear as literal text in dashboard")
+	}
+}
+
+func TestBeadDetailPlainTextDescription(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{
+		"title":       "Plain text test",
+		"description": "just plain text here",
+	})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	body := w.Body.String()
+	if !strings.Contains(body, "just plain text here") {
+		t.Error("expected plain description text to appear in detail page")
+	}
+}
