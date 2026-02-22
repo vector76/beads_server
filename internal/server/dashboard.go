@@ -146,9 +146,9 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <summary>
   <h2>{{.Name}}</h2>
   <div class="counts">
-    <div><strong>In Progress:</strong> {{len .InProgress}}</div>
-    <div><strong>Open:</strong> {{len .Open}}</div>
     <div><strong>Not Ready:</strong> {{len .NotReady}}</div>
+    <div><strong>Open:</strong> {{len .Open}}</div>
+    <div><strong>In Progress:</strong> {{len .InProgress}}</div>
     <div><strong>Closed:</strong> {{len .Closed}}</div>
   </div>
 </summary>
