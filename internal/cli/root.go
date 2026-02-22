@@ -58,5 +58,8 @@ func NewRootCmd() *cobra.Command {
 	resolveAlias.Hidden = true
 	root.AddCommand(resolveAlias)
 
+	root.AddCommand(newRedirectCmd("depend"))
+	root.AddCommand(newRedirectCmd("block"))
+
 	return root
 }

@@ -6,6 +6,29 @@ import (
 	"github.com/spf13/cobra"
 )
 
+// newRedirectCmd returns a hidden command that always exits 1 and prints a
+// redirect message plus the full "bs link --help" output to stderr.
+func newRedirectCmd(name string) *cobra.Command {
+	return &cobra.Command{
+		Use:           name,
+		Short:         "Unknown command — use 'bs link' to manage dependencies",
+		Hidden:        true,
+		SilenceUsage:  true,
+		SilenceErrors: true,
+		Args:          cobra.ArbitraryArgs,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			stderr := cmd.ErrOrStderr()
+			fmt.Fprintf(stderr, "Error: unknown command %q for \"bs\" — use \"bs link\" instead\n", name)
+			if linkCmd, _, _ := cmd.Root().Find([]string{"link"}); linkCmd != nil {
+				linkCmd.SetOut(stderr)
+				_ = linkCmd.Help()
+				linkCmd.SetOut(nil)
+			}
+			return fmt.Errorf("unknown command %q for \"bs\"", name)
+		},
+	}
+}
+
 func newAddCmd() *cobra.Command {
 	var beadType string
 	var priority string

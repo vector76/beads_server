@@ -482,3 +482,57 @@ func TestDelete_NotFound(t *testing.T) {
 		t.Error("expected error deleting non-existent bead")
 	}
 }
+
+// runCmdErrWithStderr executes a CLI command, expects an error, and returns stderr output.
+func runCmdErrWithStderr(t *testing.T, args ...string) (error, string) {
+	t.Helper()
+	cmd := NewRootCmd()
+	errBuf := new(bytes.Buffer)
+	cmd.SetOut(new(bytes.Buffer))
+	cmd.SetErr(errBuf)
+	cmd.SetArgs(args)
+	err := cmd.Execute()
+	return err, errBuf.String()
+}
+
+func TestRedirectCmd_Depend(t *testing.T) {
+	err, stderr := runCmdErrWithStderr(t, "depend", "some-id", "extra-arg")
+	if err == nil {
+		t.Fatal("expected error from depend, got nil")
+	}
+	if !strings.Contains(stderr, `"depend"`) {
+		t.Errorf("stderr should mention \"depend\", got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "bs link") {
+		t.Errorf("stderr should mention 'bs link', got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "--blocked-by") {
+		t.Errorf("stderr should include link help with --blocked-by, got: %s", stderr)
+	}
+}
+
+func TestRedirectCmd_Block(t *testing.T) {
+	err, stderr := runCmdErrWithStderr(t, "block", "some-id")
+	if err == nil {
+		t.Fatal("expected error from block, got nil")
+	}
+	if !strings.Contains(stderr, `"block"`) {
+		t.Errorf("stderr should mention \"block\", got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "bs link") {
+		t.Errorf("stderr should mention 'bs link', got: %s", stderr)
+	}
+	if !strings.Contains(stderr, "--blocked-by") {
+		t.Errorf("stderr should include link help with --blocked-by, got: %s", stderr)
+	}
+}
+
+func TestRedirectCmdsHiddenFromHelp(t *testing.T) {
+	out := runCmd(t, "--help")
+	if strings.Contains(out, "\n  depend") {
+		t.Error("'depend' should not appear as a command in help output")
+	}
+	if strings.Contains(out, "\n  block") {
+		t.Error("'block' should not appear as a command in help output")
+	}
+}
