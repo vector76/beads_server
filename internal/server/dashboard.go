@@ -122,19 +122,35 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <meta charset="utf-8">
 <title>Beads Dashboard</title>
 <style>
-  body { font-family: sans-serif; margin: 2em; color: #222; }
+  :root {
+    --color-text: #222;
+    --color-border-subtle: #ccc;
+    --color-border: #ddd;
+    --color-bg-header: #f5f5f5;
+    --color-bg-badge: #f0f0f0;
+    --color-text-muted: #555;
+  }
+  [data-theme="dark"] {
+    --color-text: #e0e0e0;
+    --color-border-subtle: #555;
+    --color-border: #444;
+    --color-bg-header: #2a2a2a;
+    --color-bg-badge: #2a2a2a;
+    --color-text-muted: #aaa;
+  }
+  body { font-family: sans-serif; margin: 2em; color: var(--color-text); }
   h1 { margin-bottom: 0.2em; }
-  h2 { border-bottom: 1px solid #ccc; padding-bottom: 0.2em; }
+  h2 { border-bottom: 1px solid var(--color-border-subtle); padding-bottom: 0.2em; }
   h3 { margin-top: 1.2em; }
   table { border-collapse: collapse; width: 100%; margin-bottom: 1em; }
-  th, td { text-align: left; padding: 0.35em 0.7em; border: 1px solid #ddd; }
-  th { background: #f5f5f5; }
+  th, td { text-align: left; padding: 0.35em 0.7em; border: 1px solid var(--color-border); }
+  th { background: var(--color-bg-header); }
   .counts { display: flex; gap: 0.8em; flex-wrap: wrap; }
-  .counts div { padding: 0.3em 0.7em; border-radius: 4px; background: #f0f0f0; font-size: 0.9em; }
-  .section { margin-bottom: 2em; border: 1px solid #ddd; border-radius: 4px; padding: 0.5em 1em; }
+  .counts div { padding: 0.3em 0.7em; border-radius: 4px; background: var(--color-bg-badge); font-size: 0.9em; }
+  .section { margin-bottom: 2em; border: 1px solid var(--color-border); border-radius: 4px; padding: 0.5em 1em; }
   details.section > summary { cursor: pointer; display: flex; align-items: center; gap: 0.8em; list-style: none; padding: 0.2em 0; }
   details.section > summary::-webkit-details-marker { display: none; }
-  details.section > summary::before { content: "▶"; font-size: 0.75em; color: #555; }
+  details.section > summary::before { content: "▶"; font-size: 0.75em; color: var(--color-text-muted); }
   details[open].section > summary::before { content: "▼"; }
   details.section > summary h2 { margin: 0; border-bottom: none; padding-bottom: 0; }
 </style>
@@ -215,20 +231,42 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
 <meta charset="utf-8">
 <title>{{.Bead.ID}} — {{.Bead.Title}}</title>
 <style>
-  body { font-family: sans-serif; margin: 2em; color: #222; }
-  a { color: #0366d6; text-decoration: none; }
+  :root {
+    --color-text: #222;
+    --color-link: #0366d6;
+    --color-bg-badge: #f0f0f0;
+    --color-bg-subtle: #fafafa;
+    --color-border-light: #eee;
+    --color-bg-tag: #e1ecf4;
+    --color-border: #ddd;
+    --color-bg-header: #f5f5f5;
+    --color-text-secondary: #666;
+  }
+  [data-theme="dark"] {
+    --color-text: #e0e0e0;
+    --color-link: #58a6ff;
+    --color-bg-badge: #2a2a2a;
+    --color-bg-subtle: #1a1a1a;
+    --color-border-light: #333;
+    --color-bg-tag: #1a3a5c;
+    --color-border: #444;
+    --color-bg-header: #2a2a2a;
+    --color-text-secondary: #aaa;
+  }
+  body { font-family: sans-serif; margin: 2em; color: var(--color-text); }
+  a { color: var(--color-link); text-decoration: none; }
   a:hover { text-decoration: underline; }
   h1 { margin-bottom: 0.2em; }
   .back { margin-bottom: 1em; }
   .meta { display: flex; gap: 1.5em; flex-wrap: wrap; margin-bottom: 1em; }
-  .meta div { padding: 0.4em 0.8em; border-radius: 4px; background: #f0f0f0; }
-  .description { background: #fafafa; border: 1px solid #eee; padding: 1em; border-radius: 4px; margin-bottom: 1em; }
-  .tags span { display: inline-block; background: #e1ecf4; padding: 0.2em 0.6em; border-radius: 3px; margin-right: 0.4em; font-size: 0.9em; }
+  .meta div { padding: 0.4em 0.8em; border-radius: 4px; background: var(--color-bg-badge); }
+  .description { background: var(--color-bg-subtle); border: 1px solid var(--color-border-light); padding: 1em; border-radius: 4px; margin-bottom: 1em; }
+  .tags span { display: inline-block; background: var(--color-bg-tag); padding: 0.2em 0.6em; border-radius: 3px; margin-right: 0.4em; font-size: 0.9em; }
   table { border-collapse: collapse; width: 100%; margin-bottom: 1em; }
-  th, td { text-align: left; padding: 0.35em 0.7em; border: 1px solid #ddd; }
-  th { background: #f5f5f5; }
-  .comment { border: 1px solid #eee; padding: 0.8em; margin-bottom: 0.5em; border-radius: 4px; }
-  .comment-meta { font-size: 0.85em; color: #666; margin-bottom: 0.3em; }
+  th, td { text-align: left; padding: 0.35em 0.7em; border: 1px solid var(--color-border); }
+  th { background: var(--color-bg-header); }
+  .comment { border: 1px solid var(--color-border-light); padding: 0.8em; margin-bottom: 0.5em; border-radius: 4px; }
+  .comment-meta { font-size: 0.85em; color: var(--color-text-secondary); margin-bottom: 0.3em; }
   .comment-text { white-space: pre-wrap; }
   .section { margin-bottom: 1.5em; }
 </style>
@@ -236,7 +274,7 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
 <body>
 <div class="back"><a href="/">&#8592; Dashboard</a></div>
 <h1>{{.Bead.Title}}</h1>
-<p style="color:#666; margin-top:0;">{{.Bead.ID}}</p>
+<p style="color: var(--color-text-secondary); margin-top:0;">{{.Bead.ID}}</p>
 
 <div class="meta">
   <div><strong>Status:</strong> {{.Bead.Status}}</div>

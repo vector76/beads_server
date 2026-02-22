@@ -724,9 +724,9 @@ func TestDashboardSectionHasBorder(t *testing.T) {
 	srv := crudServer(t)
 	createViaAPI(t, srv, map[string]any{"title": "Border test", "status": "open"})
 	body := getDashboard(t, srv)
-	// "border: 1px solid #ddd; border-radius" is unique to the .section rule;
-	// the th,td rule also has "border: 1px solid #ddd" but no border-radius.
-	if !strings.Contains(body, "border: 1px solid #ddd; border-radius") {
+	// "border: 1px solid var(--color-border); border-radius" is unique to the .section rule;
+	// the th,td rule also has "border: 1px solid var(--color-border)" but no border-radius.
+	if !strings.Contains(body, "border: 1px solid var(--color-border); border-radius") {
 		t.Error("expected .section CSS to include a border with border-radius")
 	}
 }
