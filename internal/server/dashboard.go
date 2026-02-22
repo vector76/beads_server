@@ -225,6 +225,18 @@ document.querySelectorAll("time[datetime]").forEach(function(el) {
   var tz = d.toLocaleTimeString(undefined, {timeZoneName: "short"}).split(" ").pop();
   el.textContent = formatted + " " + tz;
 });
+var html = document.documentElement;
+if (!html.hasAttribute("data-theme")) {
+  html.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+}
+var themeBtn = document.querySelector("[aria-label=\"Toggle dark mode\"]");
+if (themeBtn) {
+  themeBtn.addEventListener("click", function() {
+    var next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    html.setAttribute("data-theme", next);
+    document.cookie = "theme=" + next + "; path=/; max-age=31536000";
+  });
+}
 </script>
 </body>
 </html>
@@ -353,6 +365,18 @@ document.querySelectorAll("time[datetime]").forEach(function(el) {
   var tz = d.toLocaleTimeString(undefined, {timeZoneName: "short"}).split(" ").pop();
   el.textContent = formatted + " " + tz;
 });
+var html = document.documentElement;
+if (!html.hasAttribute("data-theme")) {
+  html.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+}
+var themeBtn = document.querySelector("[aria-label=\"Toggle dark mode\"]");
+if (themeBtn) {
+  themeBtn.addEventListener("click", function() {
+    var next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
+    html.setAttribute("data-theme", next);
+    document.cookie = "theme=" + next + "; path=/; max-age=31536000";
+  });
+}
 </script>
 </body>
 </html>
