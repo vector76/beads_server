@@ -553,6 +553,67 @@ func TestDashboardBlockedIndicator_ClosedNoLock(t *testing.T) {
 	}
 }
 
+func TestDashboardCountsRowOrder(t *testing.T) {
+	srv := crudServer(t)
+
+	// Create one bead of each status so all four counts are non-zero.
+	createViaAPI(t, srv, map[string]any{"title": "NR bead", "status": "not_ready"})
+	createViaAPI(t, srv, map[string]any{"title": "Open bead", "status": "open"})
+	ip := createViaAPI(t, srv, map[string]any{"title": "IP bead", "status": "open"})
+	patchStatus(t, srv, ip.ID, "in_progress")
+	cl := createViaAPI(t, srv, map[string]any{"title": "Closed bead", "status": "open"})
+	patchStatus(t, srv, cl.ID, string(model.StatusClosed))
+
+	body := getDashboard(t, srv)
+
+	// Extract the <div class="counts">...</div> substring.
+	// The counts div contains nested divs, so we find its closing by locating
+	// the </summary> tag that follows it and then finding the last </div> before that.
+	countsStart := strings.Index(body, `<div class="counts">`)
+	if countsStart == -1 {
+		t.Fatal(`counts div not found in dashboard body`)
+	}
+	summaryEnd := strings.Index(body[countsStart:], "</summary>")
+	if summaryEnd == -1 {
+		t.Fatal(`</summary> after counts div not found`)
+	}
+	segment := body[countsStart : countsStart+summaryEnd]
+	countsEnd := strings.LastIndex(segment, "</div>")
+	if countsEnd == -1 {
+		t.Fatal(`closing </div> for counts not found`)
+	}
+	counts := segment[:countsEnd+len("</div>")]
+
+	posNotReady := strings.Index(counts, "Not Ready")
+	posOpen := strings.Index(counts, "Open")
+	posInProgress := strings.Index(counts, "In Progress")
+	posClosed := strings.Index(counts, "Closed")
+
+	labels := []struct {
+		name string
+		pos  int
+	}{
+		{"Not Ready", posNotReady},
+		{"Open", posOpen},
+		{"In Progress", posInProgress},
+		{"Closed", posClosed},
+	}
+	for _, l := range labels {
+		if l.pos == -1 {
+			t.Errorf("label %q not found in counts row: %s", l.name, counts)
+		}
+	}
+	if posNotReady > posOpen {
+		t.Errorf("expected Not Ready before Open in counts row; positions: Not Ready=%d Open=%d", posNotReady, posOpen)
+	}
+	if posOpen > posInProgress {
+		t.Errorf("expected Open before In Progress in counts row; positions: Open=%d In Progress=%d", posOpen, posInProgress)
+	}
+	if posInProgress > posClosed {
+		t.Errorf("expected In Progress before Closed in counts row; positions: In Progress=%d Closed=%d", posInProgress, posClosed)
+	}
+}
+
 func TestBeadDetailRendersMarkdown(t *testing.T) {
 	srv := crudServer(t)
 	created := createViaAPI(t, srv, map[string]any{
