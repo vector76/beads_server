@@ -752,6 +752,21 @@ func TestDashboardSectionExpandedByDefault(t *testing.T) {
 	}
 }
 
+func TestDashboardSectionCollapseStatePersistedInLocalStorage(t *testing.T) {
+	srv := crudServer(t)
+	createViaAPI(t, srv, map[string]any{"title": "Persist collapse test", "status": "open"})
+	body := getDashboard(t, srv)
+	if !strings.Contains(body, `localStorage.getItem(key)`) {
+		t.Error("expected dashboard to restore section state from localStorage on load")
+	}
+	if !strings.Contains(body, `localStorage.setItem(key`) {
+		t.Error("expected dashboard to save section state to localStorage on toggle")
+	}
+	if !strings.Contains(body, `"section-open:"`) {
+		t.Error("expected dashboard to use 'section-open:' key prefix for localStorage")
+	}
+}
+
 func TestDashboardThemeCookieDark(t *testing.T) {
 	srv := crudServer(t)
 	req := httptest.NewRequest(http.MethodGet, "/", nil)

@@ -231,6 +231,15 @@ document.querySelectorAll("time[datetime]").forEach(function(el) {
   var tz = d.toLocaleTimeString(undefined, {timeZoneName: "short"}).split(" ").pop();
   el.textContent = formatted + " " + tz;
 });
+document.querySelectorAll("details.section").forEach(function(el) {
+  var h2 = el.querySelector("summary h2");
+  if (!h2) return;
+  var key = "section-open:" + h2.textContent.trim();
+  if (localStorage.getItem(key) === "false") { el.removeAttribute("open"); }
+  el.addEventListener("toggle", function() {
+    localStorage.setItem(key, el.open ? "true" : "false");
+  });
+});
 var html = document.documentElement;
 if (!html.hasAttribute("data-theme")) {
   html.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
