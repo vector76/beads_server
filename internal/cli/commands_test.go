@@ -170,6 +170,37 @@ func TestAdd_MissingToken(t *testing.T) {
 	}
 }
 
+func TestAdd_TitleFlag(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "add", "--title", "Flag title")
+	created := parseBeadFromOutput(t, out)
+	if created.Title != "Flag title" {
+		t.Errorf("title = %q, want %q", created.Title, "Flag title")
+	}
+}
+
+func TestAdd_TitleBothFails(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	err := runCmdErr(t, "add", "Positional title", "--title", "Flag title")
+	if err == nil {
+		t.Fatal("expected error when both positional arg and --title are provided")
+	}
+}
+
+func TestAdd_TitleNeitherFails(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	err := runCmdErr(t, "add")
+	if err == nil {
+		t.Fatal("expected error when neither positional arg nor --title is provided")
+	}
+}
+
 func TestShow_PrefixFails(t *testing.T) {
 	ts := startTestServer(t)
 	setClientEnv(t, ts.URL)

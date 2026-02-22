@@ -30,6 +30,7 @@ func newRedirectCmd(name string) *cobra.Command {
 }
 
 func newAddCmd() *cobra.Command {
+	var title string
 	var beadType string
 	var priority string
 	var description string
@@ -38,17 +39,31 @@ func newAddCmd() *cobra.Command {
 	var status string
 
 	cmd := &cobra.Command{
-		Use:   "add <title>",
+		Use:   "add [<title>]",
 		Short: "Create a new bead",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			hasPositional := len(args) == 1
+			hasFlag := cmd.Flags().Changed("title")
+
+			if hasPositional && hasFlag {
+				return fmt.Errorf("title specified twice: use either the positional argument or --title, not both")
+			}
+			if !hasPositional && !hasFlag {
+				return fmt.Errorf("title is required: provide it as a positional argument or via --title")
+			}
+
+			if hasPositional {
+				title = args[0]
+			}
+
 			c, err := NewClientFromEnv()
 			if err != nil {
 				return err
 			}
 
 			body := map[string]any{
-				"title": args[0],
+				"title": title,
 			}
 			if description != "" {
 				body["description"] = description
@@ -86,6 +101,7 @@ func newAddCmd() *cobra.Command {
 		},
 	}
 
+	cmd.Flags().StringVar(&title, "title", "", "bead title (alternative to positional argument)")
 	cmd.Flags().StringVar(&beadType, "type", "", "bead type (bug, feature, task, chore)")
 	cmd.Flags().StringVar(&priority, "priority", "", "priority (critical, high, medium, low, none)")
 	cmd.Flags().StringVar(&description, "description", "", "bead description")
