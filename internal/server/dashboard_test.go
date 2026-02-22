@@ -857,3 +857,69 @@ func TestBeadDetailToggleButtonPresent(t *testing.T) {
 		t.Error("expected theme toggle button on bead detail page")
 	}
 }
+
+func TestDashboardDarkModeIntegration(t *testing.T) {
+	srv := crudServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `<html data-theme="dark">`) {
+		t.Error(`expected <html data-theme="dark"> when theme=dark cookie is set`)
+	}
+	if !strings.Contains(body, `aria-label="Toggle dark mode"`) {
+		t.Error("expected toggle button present on dashboard with dark cookie")
+	}
+}
+
+func TestDashboardNoCookieIntegration(t *testing.T) {
+	srv := crudServer(t)
+	body := getDashboard(t, srv)
+	if strings.Contains(body, "<html data-theme=") {
+		t.Error("expected no server-set data-theme on <html> when no cookie is present")
+	}
+	if !strings.Contains(body, `aria-label="Toggle dark mode"`) {
+		t.Error("expected toggle button present on dashboard with no cookie")
+	}
+}
+
+func TestBeadDetailDarkModeIntegration(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{"title": "Dark mode integration", "status": "open"})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if !strings.Contains(body, `<html data-theme="dark">`) {
+		t.Error(`expected <html data-theme="dark"> on bead detail page when theme=dark cookie is set`)
+	}
+	if !strings.Contains(body, `aria-label="Toggle dark mode"`) {
+		t.Error("expected toggle button present on bead detail page with dark cookie")
+	}
+}
+
+func TestBeadDetailNoCookieIntegration(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{"title": "No cookie integration", "status": "open"})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	body := w.Body.String()
+	if strings.Contains(body, "<html data-theme=") {
+		t.Error("expected no server-set data-theme on <html> on bead detail page when no cookie is present")
+	}
+	if !strings.Contains(body, `aria-label="Toggle dark mode"`) {
+		t.Error("expected toggle button present on bead detail page with no cookie")
+	}
+}
