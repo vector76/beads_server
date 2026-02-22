@@ -129,23 +129,29 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
   table { border-collapse: collapse; width: 100%; margin-bottom: 1em; }
   th, td { text-align: left; padding: 0.35em 0.7em; border: 1px solid #ddd; }
   th { background: #f5f5f5; }
-  .counts { display: flex; gap: 1.5em; margin-bottom: 1em; flex-wrap: wrap; }
-  .counts div { padding: 0.4em 0.8em; border-radius: 4px; background: #f0f0f0; }
+  .counts { display: flex; gap: 0.8em; flex-wrap: wrap; }
+  .counts div { padding: 0.3em 0.7em; border-radius: 4px; background: #f0f0f0; font-size: 0.9em; }
   .section { margin-bottom: 2em; border: 1px solid #ddd; border-radius: 4px; padding: 0.5em 1em; }
-  details.section > summary { cursor: pointer; }
+  details.section > summary { cursor: pointer; display: flex; align-items: center; gap: 0.8em; list-style: none; padding: 0.2em 0; }
+  details.section > summary::-webkit-details-marker { display: none; }
+  details.section > summary::before { content: "▶"; font-size: 0.75em; color: #555; }
+  details[open].section > summary::before { content: "▼"; }
+  details.section > summary h2 { margin: 0; border-bottom: none; padding-bottom: 0; }
 </style>
 </head>
 <body>
 <h1>Beads Dashboard</h1>
 {{range .Projects}}{{$proj := .Name}}
 <details class="section" open>
-<summary><h2>{{.Name}}</h2></summary>
-<div class="counts">
-  <div><strong>In Progress:</strong> {{len .InProgress}}</div>
-  <div><strong>Open:</strong> {{len .Open}}</div>
-  <div><strong>Not Ready:</strong> {{len .NotReady}}</div>
-  <div><strong>Closed:</strong> {{len .Closed}}</div>
-</div>
+<summary>
+  <h2>{{.Name}}</h2>
+  <div class="counts">
+    <div><strong>In Progress:</strong> {{len .InProgress}}</div>
+    <div><strong>Open:</strong> {{len .Open}}</div>
+    <div><strong>Not Ready:</strong> {{len .NotReady}}</div>
+    <div><strong>Closed:</strong> {{len .Closed}}</div>
+  </div>
+</summary>
 
 {{if .NotReady}}
 <h3>Not Ready</h3>
