@@ -835,3 +835,25 @@ func TestBeadDetailThemeNoCookie(t *testing.T) {
 		t.Error("expected no data-theme attribute on <html> in bead detail response when no cookie is set")
 	}
 }
+
+func TestDashboardToggleButtonPresent(t *testing.T) {
+	srv := crudServer(t)
+	body := getDashboard(t, srv)
+	if !strings.Contains(body, `aria-label="Toggle dark mode"`) {
+		t.Error("expected theme toggle button on dashboard page")
+	}
+}
+
+func TestBeadDetailToggleButtonPresent(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{"title": "Toggle button test", "status": "open"})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), `aria-label="Toggle dark mode"`) {
+		t.Error("expected theme toggle button on bead detail page")
+	}
+}

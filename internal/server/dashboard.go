@@ -163,9 +163,11 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
   details.section > summary::before { content: "▶"; font-size: 0.75em; color: var(--color-text-muted); }
   details[open].section > summary::before { content: "▼"; }
   details.section > summary h2 { margin: 0; border-bottom: none; padding-bottom: 0; }
+  .theme-toggle { position: fixed; top: 1em; right: 1em; padding: 0.4em 0.8em; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-badge); color: var(--color-text); cursor: pointer; font-size: 0.9em; }
 </style>
 </head>
 <body>
+<button class="theme-toggle" aria-label="Toggle dark mode">🌙</button>
 <h1>Beads Dashboard</h1>
 {{range .Projects}}{{$proj := .Name}}
 <details class="section" open>
@@ -279,9 +281,11 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
   .comment-meta { font-size: 0.85em; color: var(--color-text-secondary); margin-bottom: 0.3em; }
   .comment-text { white-space: pre-wrap; }
   .section { margin-bottom: 1.5em; }
+  .theme-toggle { position: fixed; top: 1em; right: 1em; padding: 0.4em 0.8em; border: 1px solid var(--color-border); border-radius: 4px; background: var(--color-bg-badge); color: var(--color-text); cursor: pointer; font-size: 0.9em; }
 </style>
 </head>
 <body>
+<button class="theme-toggle" aria-label="Toggle dark mode">🌙</button>
 <div class="back"><a href="/">&#8592; Dashboard</a></div>
 <h1>{{.Bead.Title}}</h1>
 <p style="color: var(--color-text-secondary); margin-top:0;">{{.Bead.ID}}</p>
