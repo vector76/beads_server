@@ -496,34 +496,64 @@ func runCmdErrWithStderr(t *testing.T, args ...string) (error, string) {
 }
 
 func TestRedirectCmd_Depend(t *testing.T) {
-	err, stderr := runCmdErrWithStderr(t, "depend", "some-id", "extra-arg")
+	// no args
+	err, stderr := runCmdErrWithStderr(t, "depend")
 	if err == nil {
-		t.Fatal("expected error from depend, got nil")
+		t.Fatal("expected error from depend (no args), got nil")
 	}
-	if !strings.Contains(stderr, `"depend"`) {
-		t.Errorf("stderr should mention \"depend\", got: %s", stderr)
+	if !strings.Contains(stderr, `unknown command "depend" for "bs"`) {
+		t.Errorf("stderr should contain redirect message, got: %s", stderr)
 	}
 	if !strings.Contains(stderr, "bs link") {
 		t.Errorf("stderr should mention 'bs link', got: %s", stderr)
 	}
 	if !strings.Contains(stderr, "--blocked-by") {
 		t.Errorf("stderr should include link help with --blocked-by, got: %s", stderr)
+	}
+
+	// with multiple args — args are accepted and ignored
+	err, _ = runCmdErrWithStderr(t, "depend", "some-id", "other-id")
+	if err == nil {
+		t.Fatal("expected error from depend (with args), got nil")
 	}
 }
 
 func TestRedirectCmd_Block(t *testing.T) {
-	err, stderr := runCmdErrWithStderr(t, "block", "some-id")
+	// no args
+	err, stderr := runCmdErrWithStderr(t, "block")
 	if err == nil {
-		t.Fatal("expected error from block, got nil")
+		t.Fatal("expected error from block (no args), got nil")
 	}
-	if !strings.Contains(stderr, `"block"`) {
-		t.Errorf("stderr should mention \"block\", got: %s", stderr)
+	if !strings.Contains(stderr, `unknown command "block" for "bs"`) {
+		t.Errorf("stderr should contain redirect message, got: %s", stderr)
 	}
 	if !strings.Contains(stderr, "bs link") {
 		t.Errorf("stderr should mention 'bs link', got: %s", stderr)
 	}
 	if !strings.Contains(stderr, "--blocked-by") {
 		t.Errorf("stderr should include link help with --blocked-by, got: %s", stderr)
+	}
+
+	// with an arg — accepted and ignored
+	err, _ = runCmdErrWithStderr(t, "block", "some-id")
+	if err == nil {
+		t.Fatal("expected error from block (with args), got nil")
+	}
+}
+
+func TestRedirectCmd_DependHelp(t *testing.T) {
+	// --help must exit 0 and show the short description referencing bs link
+	out := runCmd(t, "depend", "--help")
+	if !strings.Contains(out, "bs link") {
+		t.Errorf("depend --help stdout should reference 'bs link', got: %s", out)
+	}
+}
+
+func TestRedirectCmd_BlockHelp(t *testing.T) {
+	// --help must exit 0 and show the short description referencing bs link
+	out := runCmd(t, "block", "--help")
+	if !strings.Contains(out, "bs link") {
+		t.Errorf("block --help stdout should reference 'bs link', got: %s", out)
 	}
 }
 
