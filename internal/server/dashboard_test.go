@@ -923,3 +923,61 @@ func TestBeadDetailNoCookieIntegration(t *testing.T) {
 		t.Error("expected toggle button present on bead detail page with no cookie")
 	}
 }
+
+func TestDashboardToggleButtonIconDark(t *testing.T) {
+	srv := crudServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "☀️") {
+		t.Error("expected sun icon (☀️) on toggle button when theme=dark cookie is set")
+	}
+}
+
+func TestDashboardToggleButtonIconLight(t *testing.T) {
+	srv := crudServer(t)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "light"})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "🌙") {
+		t.Error("expected moon icon (🌙) on toggle button when theme=light cookie is set")
+	}
+}
+
+func TestBeadDetailToggleButtonIconDark(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{"title": "Icon dark test", "status": "open"})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "dark"})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "☀️") {
+		t.Error("expected sun icon (☀️) on toggle button when theme=dark cookie is set")
+	}
+}
+
+func TestBeadDetailToggleButtonIconLight(t *testing.T) {
+	srv := crudServer(t)
+	created := createViaAPI(t, srv, map[string]any{"title": "Icon light test", "status": "open"})
+	req := httptest.NewRequest(http.MethodGet, "/bead/default/"+created.ID, nil)
+	req.AddCookie(&http.Cookie{Name: "theme", Value: "light"})
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+	if !strings.Contains(w.Body.String(), "🌙") {
+		t.Error("expected moon icon (🌙) on toggle button when theme=light cookie is set")
+	}
+}

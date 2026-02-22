@@ -134,6 +134,8 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <style>
   :root {
     --color-text: #222;
+    --color-bg-page: #fff;
+    --color-link: #0366d6;
     --color-border-subtle: #ccc;
     --color-border: #ddd;
     --color-bg-header: #f5f5f5;
@@ -142,13 +144,17 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
   }
   [data-theme="dark"] {
     --color-text: #e0e0e0;
+    --color-bg-page: #121212;
+    --color-link: #58a6ff;
     --color-border-subtle: #555;
     --color-border: #444;
     --color-bg-header: #2a2a2a;
-    --color-bg-badge: #2a2a2a;
+    --color-bg-badge: #333;
     --color-text-muted: #aaa;
   }
-  body { font-family: sans-serif; margin: 2em; color: var(--color-text); }
+  body { font-family: sans-serif; margin: 2em; color: var(--color-text); background: var(--color-bg-page); }
+  a { color: var(--color-link); text-decoration: none; }
+  a:hover { text-decoration: underline; }
   h1 { margin-bottom: 0.2em; }
   h2 { border-bottom: 1px solid var(--color-border-subtle); padding-bottom: 0.2em; }
   h3 { margin-top: 1.2em; }
@@ -167,7 +173,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 </style>
 </head>
 <body>
-<button class="theme-toggle" aria-label="Toggle dark mode">🌙</button>
+<button class="theme-toggle" aria-label="Toggle dark mode">{{if eq .Theme "dark"}}☀️{{else}}🌙{{end}}</button>
 <h1>Beads Dashboard</h1>
 {{range .Projects}}{{$proj := .Name}}
 <details class="section" open>
@@ -230,11 +236,16 @@ if (!html.hasAttribute("data-theme")) {
   html.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 }
 var themeBtn = document.querySelector("[aria-label=\"Toggle dark mode\"]");
+function syncToggleBtn() {
+  if (themeBtn) { themeBtn.textContent = html.getAttribute("data-theme") === "dark" ? "☀️" : "🌙"; }
+}
+syncToggleBtn();
 if (themeBtn) {
   themeBtn.addEventListener("click", function() {
     var next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
     html.setAttribute("data-theme", next);
     document.cookie = "theme=" + next + "; path=/; max-age=31536000";
+    syncToggleBtn();
   });
 }
 </script>
@@ -257,6 +268,7 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
 <style>
   :root {
     --color-text: #222;
+    --color-bg-page: #fff;
     --color-link: #0366d6;
     --color-bg-badge: #f0f0f0;
     --color-bg-subtle: #fafafa;
@@ -268,8 +280,9 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
   }
   [data-theme="dark"] {
     --color-text: #e0e0e0;
+    --color-bg-page: #121212;
     --color-link: #58a6ff;
-    --color-bg-badge: #2a2a2a;
+    --color-bg-badge: #333;
     --color-bg-subtle: #1a1a1a;
     --color-border-light: #333;
     --color-bg-tag: #1a3a5c;
@@ -277,7 +290,7 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
     --color-bg-header: #2a2a2a;
     --color-text-secondary: #aaa;
   }
-  body { font-family: sans-serif; margin: 2em; color: var(--color-text); }
+  body { font-family: sans-serif; margin: 2em; color: var(--color-text); background: var(--color-bg-page); }
   a { color: var(--color-link); text-decoration: none; }
   a:hover { text-decoration: underline; }
   h1 { margin-bottom: 0.2em; }
@@ -297,7 +310,7 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
 </style>
 </head>
 <body>
-<button class="theme-toggle" aria-label="Toggle dark mode">🌙</button>
+<button class="theme-toggle" aria-label="Toggle dark mode">{{if eq .Theme "dark"}}☀️{{else}}🌙{{end}}</button>
 <div class="back"><a href="/">&#8592; Dashboard</a></div>
 <h1>{{.Bead.Title}}</h1>
 <p style="color: var(--color-text-secondary); margin-top:0;">{{.Bead.ID}}</p>
@@ -370,11 +383,16 @@ if (!html.hasAttribute("data-theme")) {
   html.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
 }
 var themeBtn = document.querySelector("[aria-label=\"Toggle dark mode\"]");
+function syncToggleBtn() {
+  if (themeBtn) { themeBtn.textContent = html.getAttribute("data-theme") === "dark" ? "☀️" : "🌙"; }
+}
+syncToggleBtn();
 if (themeBtn) {
   themeBtn.addEventListener("click", function() {
     var next = html.getAttribute("data-theme") === "dark" ? "light" : "dark";
     html.setAttribute("data-theme", next);
     document.cookie = "theme=" + next + "; path=/; max-age=31536000";
+    syncToggleBtn();
   });
 }
 </script>
