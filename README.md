@@ -4,7 +4,43 @@ An agent-first issue tracker. A single executable (`bs`) that runs as either an 
 
 ## Quick Start
 
-### Build
+### Download a release
+
+Pre-built binaries are available on the [Releases page](https://github.com/vector76/beads_server/releases/latest).
+
+**Linux (amd64)**
+```bash
+curl -L https://github.com/vector76/beads_server/releases/latest/download/bs-linux-amd64 -o bs
+chmod +x bs
+./bs --version
+```
+
+**Windows (amd64)**
+
+Download `bs-windows-amd64.exe` from the Releases page and run it directly:
+```
+bs-windows-amd64.exe --version
+```
+
+**macOS (Apple Silicon / arm64)**
+```bash
+curl -L https://github.com/vector76/beads_server/releases/latest/download/bs-darwin-arm64 -o bs
+chmod +x bs
+xattr -d com.apple.quarantine bs   # clear Gatekeeper quarantine flag
+./bs --version
+```
+
+**macOS (Intel / amd64)**
+```bash
+curl -L https://github.com/vector76/beads_server/releases/latest/download/bs-darwin-amd64 -o bs
+chmod +x bs
+xattr -d com.apple.quarantine bs   # clear Gatekeeper quarantine flag
+./bs --version
+```
+
+> The `xattr` step is required on macOS because the binary is not code-signed. Gatekeeper will block it otherwise.
+
+### Build from source
 
 ```bash
 go build -o bs ./cmd/bs
@@ -18,7 +54,7 @@ go build -o bs.exe ./cmd/bs
 Or use the Makefile for cross-compiled binaries:
 
 ```bash
-make build        # produces build/bs-linux-amd64 and build/bs-windows-amd64.exe
+make build        # produces build/bs-linux-amd64, build/bs-windows-amd64.exe, build/bs-darwin-arm64, build/bs-darwin-amd64
 ```
 
 ### Start the server
@@ -140,3 +176,4 @@ go test ./e2e/...                # end-to-end
 | [Multi-Agent Workflow](docs/multi-agent-workflow.md) | Claim/resume patterns, conflict handling, dependency-driven coordination |
 | [Multi-Project](docs/multi-project.md) | Hosting multiple isolated projects on a single server instance |
 | [Epics](docs/epics.md) | Parent/child epic hierarchy — data model, commands, and behavior |
+| [Releasing](docs/releasing.md) | How to cut a release (git tag workflow, versioning conventions) |
