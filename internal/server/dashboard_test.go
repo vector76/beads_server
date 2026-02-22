@@ -658,3 +658,35 @@ func TestBeadDetailPlainTextDescription(t *testing.T) {
 		t.Error("expected plain description text to appear in detail page")
 	}
 }
+
+func TestDashboardSectionHasBorder(t *testing.T) {
+	srv := crudServer(t)
+	createViaAPI(t, srv, map[string]any{"title": "Border test", "status": "open"})
+	body := getDashboard(t, srv)
+	// "border: 1px solid #ddd; border-radius" is unique to the .section rule;
+	// the th,td rule also has "border: 1px solid #ddd" but no border-radius.
+	if !strings.Contains(body, "border: 1px solid #ddd; border-radius") {
+		t.Error("expected .section CSS to include a border with border-radius")
+	}
+}
+
+func TestDashboardSectionIsCollapsible(t *testing.T) {
+	srv := crudServer(t)
+	createViaAPI(t, srv, map[string]any{"title": "Collapsible test", "status": "open"})
+	body := getDashboard(t, srv)
+	if !strings.Contains(body, "<details") {
+		t.Error("expected dashboard sections to use <details> element for collapsibility")
+	}
+	if !strings.Contains(body, "<summary>") {
+		t.Error("expected dashboard sections to use <summary> element")
+	}
+}
+
+func TestDashboardSectionExpandedByDefault(t *testing.T) {
+	srv := crudServer(t)
+	createViaAPI(t, srv, map[string]any{"title": "Open by default test", "status": "open"})
+	body := getDashboard(t, srv)
+	if !strings.Contains(body, `<details class="section" open>`) {
+		t.Error("expected dashboard sections to be open (expanded) by default")
+	}
+}

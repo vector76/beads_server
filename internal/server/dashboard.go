@@ -131,14 +131,15 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
   th { background: #f5f5f5; }
   .counts { display: flex; gap: 1.5em; margin-bottom: 1em; flex-wrap: wrap; }
   .counts div { padding: 0.4em 0.8em; border-radius: 4px; background: #f0f0f0; }
-  .section { margin-bottom: 2em; }
+  .section { margin-bottom: 2em; border: 1px solid #ddd; border-radius: 4px; padding: 0.5em 1em; }
+  details.section > summary { cursor: pointer; }
 </style>
 </head>
 <body>
 <h1>Beads Dashboard</h1>
 {{range .Projects}}{{$proj := .Name}}
-<div class="section">
-<h2>{{.Name}}</h2>
+<details class="section" open>
+<summary><h2>{{.Name}}</h2></summary>
 <div class="counts">
   <div><strong>In Progress:</strong> {{len .InProgress}}</div>
   <div><strong>Open:</strong> {{len .Open}}</div>
@@ -178,7 +179,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 {{end}}</table>
 {{end}}
 
-</div>
+</details>
 {{end}}
 <script>
 document.querySelectorAll("time[datetime]").forEach(function(el) {
