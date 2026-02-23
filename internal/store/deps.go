@@ -3,7 +3,7 @@ package store
 import (
 	"fmt"
 
-	"github.com/yourorg/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/model"
 )
 
 // DepsResult holds the dependency information for a bead.

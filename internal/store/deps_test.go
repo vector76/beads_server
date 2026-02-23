@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/yourorg/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/model"
 )
 
 func tempStore(t *testing.T) *Store {

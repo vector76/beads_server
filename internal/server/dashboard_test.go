@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourorg/beads_server/internal/model"
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 func TestSortByUpdatedDesc(t *testing.T) {

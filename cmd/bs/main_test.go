@@ -42,9 +42,12 @@ func TestBinaryVersionFlag(t *testing.T) {
 		t.Fatalf("binary exited with error: %v\n%s", err, out)
 	}
 
-	output := strings.TrimSpace(string(out))
-	if !strings.HasPrefix(output, "bs version ") {
-		t.Errorf("expected output to start with 'bs version ', got: %q", output)
+	output := string(out)
+	if !strings.Contains(output, "client: ") {
+		t.Errorf("expected output to contain 'client: ', got: %q", output)
+	}
+	if !strings.Contains(output, "server: ") {
+		t.Errorf("expected output to contain 'server: ', got: %q", output)
 	}
 }
 

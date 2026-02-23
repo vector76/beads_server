@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/yourorg/beads_server/internal/model"
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 // commentRequest is the JSON body for adding a comment.

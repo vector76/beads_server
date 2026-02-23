@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourorg/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/model"
 )
 
 func newBeadWithFields(id, title string, status model.Status, priority model.Priority, beadType model.BeadType, assignee string, tags []string, blockedBy []string, createdAt time.Time) model.Bead {

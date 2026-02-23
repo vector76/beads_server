@@ -1,6 +1,6 @@
 package server
 
-import "github.com/yourorg/beads_server/internal/store"
+import "github.com/vector76/beads_server/internal/store"
 
 // ProjectInfo exposes a project's name and store without auth details.
 type ProjectInfo struct {

@@ -9,8 +9,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/yourorg/beads_server/internal/model"
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 // handleListBeads handles GET /api/v1/beads.

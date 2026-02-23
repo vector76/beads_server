@@ -7,9 +7,9 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
-	"github.com/yourorg/beads_server/internal/project"
-	"github.com/yourorg/beads_server/internal/server"
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/project"
+	"github.com/vector76/beads_server/internal/server"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 func newServeCmd() *cobra.Command {

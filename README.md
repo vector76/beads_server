@@ -8,6 +8,12 @@ An agent-first issue tracker. A single executable (`bs`) that runs as either an 
 
 Pre-built binaries are available on the [Releases page](https://github.com/vector76/beads_server/releases/latest).
 
+**Via go install (any platform, no root required)**
+```bash
+go install github.com/vector76/beads_server/cmd/bs@latest
+```
+Installs to `$GOPATH/bin` (typically `~/go/bin`). The version is embedded automatically.
+
 **Linux (amd64)**
 ```bash
 curl -L https://github.com/vector76/beads_server/releases/latest/download/bs-linux-amd64 -o bs
@@ -55,6 +61,7 @@ Or use the Makefile for cross-compiled binaries:
 
 ```bash
 make build        # produces build/bs-linux-amd64, build/bs-windows-amd64.exe, build/bs-darwin-arm64, build/bs-darwin-amd64
+make install      # builds linux/amd64 and installs to $GOPATH/bin/bs (Linux only)
 ```
 
 ### Start the server

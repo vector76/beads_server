@@ -3,11 +3,24 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"runtime/debug"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
 
 var version = "dev"
+
+func init() {
+	if version == "dev" {
+		if info, ok := debug.ReadBuildInfo(); ok &&
+			info.Main.Version != "" &&
+			info.Main.Version != "(devel)" {
+			version = strings.TrimPrefix(info.Main.Version, "v")
+		}
+	}
+}
 
 // NewRootCmd creates the root cobra command for the bs CLI.
 func NewRootCmd() *cobra.Command {
@@ -22,14 +35,17 @@ func NewRootCmd() *cobra.Command {
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "client: %s\n", version)
 			serverVersion := "unavailable"
-			if c, err := NewClientFromEnv(); err == nil {
-				if data, err := c.Do("GET", "/api/v1/version", nil); err == nil {
-					var resp struct {
-						Version string `json:"version"`
-					}
-					if json.Unmarshal(data, &resp) == nil && resp.Version != "" {
-						serverVersion = resp.Version
-					}
+			serverURL := getenv("BS_URL")
+			if serverURL == "" {
+				serverURL = defaultURL
+			}
+			if resp, err := http.Get(serverURL + "/api/v1/version"); err == nil {
+				defer resp.Body.Close()
+				var v struct {
+					Version string `json:"version"`
+				}
+				if json.NewDecoder(resp.Body).Decode(&v) == nil && v.Version != "" {
+					serverVersion = v.Version
 				}
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "server: %s\n", serverVersion)

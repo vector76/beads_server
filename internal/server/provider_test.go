@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 func loadTestStore(t *testing.T) *store.Store {

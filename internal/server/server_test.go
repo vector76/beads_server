@@ -10,7 +10,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 const testToken = "test-secret-token"

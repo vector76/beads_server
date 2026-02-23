@@ -25,7 +25,7 @@ jobs:
       - name: Build binaries
         run: |
           VERSION=${GITHUB_REF_NAME#v}
-          LDFLAGS="-s -w -X 'github.com/yourorg/beads_server/internal/cli.version=${VERSION}'"
+          LDFLAGS="-s -w -X 'github.com/vector76/beads_server/internal/cli.version=${VERSION}'"
           mkdir -p build
           GOOS=linux   GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o build/bs-linux-amd64       ./cmd/bs
           GOOS=windows GOARCH=amd64 go build -ldflags="${LDFLAGS}" -o build/bs-windows-amd64.exe ./cmd/bs

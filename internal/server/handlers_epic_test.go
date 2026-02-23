@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/yourorg/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/model"
 )
 
 // --- Create with parent_id ---

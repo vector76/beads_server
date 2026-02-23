@@ -3,7 +3,7 @@ package main
 import (
 	"os"
 
-	"github.com/yourorg/beads_server/internal/cli"
+	"github.com/vector76/beads_server/internal/cli"
 )
 
 func main() {

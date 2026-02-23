@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/yourorg/beads_server/internal/model"
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 // dashboardProject holds the template data for one project.

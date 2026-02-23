@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/yourorg/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/model"
 )
 
 // --- Search tests ---

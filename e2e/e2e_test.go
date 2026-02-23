@@ -11,10 +11,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourorg/beads_server/internal/cli"
-	"github.com/yourorg/beads_server/internal/model"
-	"github.com/yourorg/beads_server/internal/server"
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/cli"
+	"github.com/vector76/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/server"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 const testToken = "e2e-test-secret"

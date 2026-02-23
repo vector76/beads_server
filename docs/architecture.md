@@ -113,7 +113,7 @@ go test ./e2e/...
 
 **Single binary, two modes.** The `bs` binary is both server and CLI client. `bs serve` starts the HTTP server; every other command is a client that talks to the server via HTTP. This avoids separate installs and keeps deployment simple.
 
-**JSON-only output.** All CLI output is pretty-printed JSON. No tables, no colors, no human-oriented formatting. Agents parse JSON natively; humans can pipe through `jq`. This eliminates an entire class of formatting/parsing bugs.
+**JSON-only output.** All CLI output is pretty-printed JSON except `bs --version`, which outputs plain text for human readability. No tables, no colors, no human-oriented formatting for command output. Agents parse JSON natively; humans can pipe through `jq`. This eliminates an entire class of formatting/parsing bugs.
 
 **Chi for routing, cobra for CLI.** Both are lightweight, widely used Go libraries. Chi adds path parameters and middleware grouping on top of `net/http`. Cobra provides flag parsing, help text, and command grouping. Neither imposes architectural constraints.
 

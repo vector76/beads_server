@@ -9,8 +9,8 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/yourorg/beads_server/internal/model"
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 func authReq(method, url string, body any) *http.Request {

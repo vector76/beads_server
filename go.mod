@@ -1,4 +1,4 @@
-module github.com/yourorg/beads_server
+module github.com/vector76/beads_server
 
 go 1.25.5
 

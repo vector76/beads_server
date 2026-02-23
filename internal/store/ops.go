@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/yourorg/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/model"
 )
 
 // NotFoundError represents a 404 Not Found error for bead lookups.

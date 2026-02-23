@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/yourorg/beads_server/internal/model"
-	"github.com/yourorg/beads_server/internal/server"
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/server"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 const testToken = "test-secret"
@@ -622,11 +622,7 @@ func TestVersionFlag(t *testing.T) {
 
 func TestVersionFlagServerUnavailable(t *testing.T) {
 	os.Setenv("BS_URL", "http://localhost:59999")
-	os.Setenv("BS_TOKEN", testToken)
-	t.Cleanup(func() {
-		os.Unsetenv("BS_URL")
-		os.Unsetenv("BS_TOKEN")
-	})
+	t.Cleanup(func() { os.Unsetenv("BS_URL") })
 
 	out := runCmd(t, "--version")
 

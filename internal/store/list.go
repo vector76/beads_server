@@ -4,7 +4,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/yourorg/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/model"
 )
 
 // BeadSummary contains the key fields returned by list and search.

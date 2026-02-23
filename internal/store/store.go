@@ -8,7 +8,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/yourorg/beads_server/internal/model"
+	"github.com/vector76/beads_server/internal/model"
 )
 
 // Store holds beads in memory and persists them to a JSON file.

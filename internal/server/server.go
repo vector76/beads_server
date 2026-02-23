@@ -13,7 +13,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/yourorg/beads_server/internal/store"
+	"github.com/vector76/beads_server/internal/store"
 )
 
 // contextKey is an unexported type for context keys in this package.
