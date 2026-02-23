@@ -125,6 +125,7 @@ The client also reads `BS_TOKEN`, `BS_USER`, and `BS_URL` from a `.env` file in 
 
 | Command | Description |
 |---------|-------------|
+| `bs -v` / `bs --version` | Show client version and server version (or `server: unavailable` if unreachable) |
 | `bs whoami` | Print current agent identity (local, no server contact) |
 | `bs add "title"` | Create a bead (`--type`, `--priority`, `--description`, `--tags`, `--parent <id>`, `--status open\|not_ready`) |
 | `bs show <id>` | Show full bead details |
@@ -144,7 +145,7 @@ The client also reads `BS_TOKEN`, `BS_USER`, and `BS_URL` from a `.env` file in 
 | `bs move <id> --into <epic-id>` | Move a bead into an epic (set parent) |
 | `bs move <id> --out` | Detach a bead from its parent epic |
 
-All output is pretty-printed JSON. IDs are short by default (`bd-` + 4 chars) and must be specified exactly and in full.
+All command output is pretty-printed JSON except `--version`, which outputs plain text. IDs are short by default (`bd-` + 4 chars) and must be specified exactly and in full.
 
 Hidden aliases (not shown in `bs --help`): `bs create` = `bs add`, `bs resolve` = `bs close`.
 

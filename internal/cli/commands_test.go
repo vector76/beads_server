@@ -606,6 +606,38 @@ func TestRedirectCmd_BlockHelp(t *testing.T) {
 	}
 }
 
+func TestVersionFlag(t *testing.T) {
+	ts := startTestServerWithVersion(t, "9.8.7")
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "--version")
+
+	if !strings.Contains(out, "client: "+version) {
+		t.Errorf("expected client version in output, got: %s", out)
+	}
+	if !strings.Contains(out, "server: 9.8.7") {
+		t.Errorf("expected server: 9.8.7 in output, got: %s", out)
+	}
+}
+
+func TestVersionFlagServerUnavailable(t *testing.T) {
+	os.Setenv("BS_URL", "http://localhost:59999")
+	os.Setenv("BS_TOKEN", testToken)
+	t.Cleanup(func() {
+		os.Unsetenv("BS_URL")
+		os.Unsetenv("BS_TOKEN")
+	})
+
+	out := runCmd(t, "--version")
+
+	if !strings.Contains(out, "client: "+version) {
+		t.Errorf("expected client version in output, got: %s", out)
+	}
+	if !strings.Contains(out, "server: unavailable") {
+		t.Errorf("expected server: unavailable in output, got: %s", out)
+	}
+}
+
 func TestRedirectCmdsHiddenFromHelp(t *testing.T) {
 	out := runCmd(t, "--help")
 	if strings.Contains(out, "\n  depend") {

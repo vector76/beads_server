@@ -9,24 +9,6 @@ import (
 	"github.com/yourorg/beads_server/internal/store"
 )
 
-func TestVersionCmd(t *testing.T) {
-	ts := startTestServerWithVersion(t, "9.8.7")
-	setClientEnv(t, ts.URL)
-
-	out := runCmd(t, "version")
-
-	var result map[string]string
-	if err := json.Unmarshal([]byte(out), &result); err != nil {
-		t.Fatalf("parse output: %v\noutput: %s", err, out)
-	}
-	if result["server"] != "9.8.7" {
-		t.Errorf("server = %q, want 9.8.7", result["server"])
-	}
-	if result["client"] != version {
-		t.Errorf("client = %q, want %q", result["client"], version)
-	}
-}
-
 func TestList_Default(t *testing.T) {
 	ts := startTestServer(t)
 	setClientEnv(t, ts.URL)
