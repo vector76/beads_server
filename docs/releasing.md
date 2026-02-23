@@ -32,3 +32,13 @@ Use [semantic versioning](https://semver.org): `vMAJOR.MINOR.PATCH`
 ## Non-release commits
 
 Ordinary commits and PRs to `main` run CI (tests only) but do **not** produce a release. Only tagged commits trigger a release build.
+
+## Skipping CI entirely
+
+Add `[skip ci]` anywhere in the commit message to suppress all workflow runs for that push:
+
+```bash
+git commit -m "Fix typo in README [skip ci]"
+```
+
+Useful for trivial changes where you've already tested locally. Note: this only suppresses `push`-triggered runs — it does not affect PR workflow runs.

@@ -1,7 +1,7 @@
 BINARY_NAME := bs
 BUILD_DIR := build
 SRC := ./cmd/bs
-VERSION ?= dev
+VERSION ?= $(patsubst v%,%,$(shell git describe --tags --always --dirty 2>/dev/null || echo "dev"))
 LDFLAGS := -X 'github.com/yourorg/beads_server/internal/cli.version=$(VERSION)'
 
 .PHONY: all build test clean linux windows darwin-arm64 darwin-amd64

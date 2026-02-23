@@ -36,6 +36,24 @@ func startTestServer(t *testing.T) *httptest.Server {
 	return ts
 }
 
+// startTestServerWithVersion creates a test HTTP server reporting the given version string.
+func startTestServerWithVersion(t *testing.T, v string) *httptest.Server {
+	t.Helper()
+	dir := t.TempDir()
+	s, err := store.Load(filepath.Join(dir, "beads.json"))
+	if err != nil {
+		t.Fatalf("store.Load: %v", err)
+	}
+	p := server.NewSingleStoreProvider(testToken, s)
+	srv, err := server.New(server.Config{Port: 0, LogOutput: io.Discard, Version: v}, p)
+	if err != nil {
+		t.Fatalf("server.New: %v", err)
+	}
+	ts := httptest.NewServer(srv.Router)
+	t.Cleanup(ts.Close)
+	return ts
+}
+
 // setClientEnv sets BS_URL and BS_TOKEN env vars for a test, restoring them after.
 func setClientEnv(t *testing.T, url string) {
 	t.Helper()

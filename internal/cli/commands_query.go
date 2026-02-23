@@ -1,12 +1,53 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
 
 	"github.com/spf13/cobra"
 )
+
+func newVersionCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Show client and server versions",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := NewClientFromEnv()
+			if err != nil {
+				return err
+			}
+
+			data, err := c.Do("GET", "/api/v1/version", nil)
+			if err != nil {
+				return err
+			}
+
+			var serverResp struct {
+				Version string `json:"version"`
+			}
+			if err := json.Unmarshal(data, &serverResp); err != nil {
+				return fmt.Errorf("parsing server response: %w", err)
+			}
+
+			combined := struct {
+				Client string `json:"client"`
+				Server string `json:"server"`
+			}{Client: version, Server: serverResp.Version}
+			b, err := json.Marshal(combined)
+			if err != nil {
+				return err
+			}
+			out, err := prettyJSON(b)
+			if err != nil {
+				return err
+			}
+			fmt.Fprintln(cmd.OutOrStdout(), out)
+			return nil
+		},
+	}
+}
 
 func newListCmd() *cobra.Command {
 	var all bool

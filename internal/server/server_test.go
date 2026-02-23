@@ -133,6 +133,49 @@ func TestAuthInvalidFormat(t *testing.T) {
 	}
 }
 
+func TestVersionEndpoint(t *testing.T) {
+	dir := t.TempDir()
+	s, err := store.Load(filepath.Join(dir, "beads.json"))
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	p := NewSingleStoreProvider(testToken, s)
+	srv, err := New(Config{Port: 0, LogOutput: io.Discard, Version: "1.2.3"}, p)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/version", nil)
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", w.Code)
+	}
+
+	var body map[string]string
+	if err := json.NewDecoder(w.Body).Decode(&body); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+
+	if body["version"] != "1.2.3" {
+		t.Fatalf("expected version=1.2.3, got %v", body)
+	}
+}
+
+func TestVersionNoAuthRequired(t *testing.T) {
+	srv := testServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/version", nil)
+	// No Authorization header
+	w := httptest.NewRecorder()
+	srv.Router.ServeHTTP(w, req)
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("expected 200 without auth, got %d", w.Code)
+	}
+}
+
 func TestNewServerRequiresProvider(t *testing.T) {
 	_, err := New(Config{Port: 8080, DataFile: "beads.json", LogOutput: io.Discard}, nil)
 	if err == nil {

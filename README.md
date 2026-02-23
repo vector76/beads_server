@@ -38,7 +38,7 @@ xattr -d com.apple.quarantine bs   # clear Gatekeeper quarantine flag
 ./bs --version
 ```
 
-> The `xattr` step is required on macOS because the binary is not code-signed. Gatekeeper will block it otherwise.
+> The `xattr` step clears the Gatekeeper quarantine flag. It is needed if you downloaded via a browser; curl downloads typically don't set it, in which case the command does nothing.
 
 ### Build from source
 

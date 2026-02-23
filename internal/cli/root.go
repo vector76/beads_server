@@ -26,6 +26,7 @@ func NewRootCmd() *cobra.Command {
 	root.AddCommand(serveCmd)
 
 	for _, cmd := range []*cobra.Command{
+		newVersionCmd(),
 		newWhoamiCmd(),
 		newAddCmd(),
 		newShowCmd(),

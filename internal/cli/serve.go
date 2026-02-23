@@ -91,7 +91,8 @@ func newServeCmd() *cobra.Command {
 			}
 
 			cfg := server.Config{
-				Port: port,
+				Port:    port,
+				Version: version,
 			}
 
 			srv, err := server.New(cfg, provider)

@@ -2,7 +2,7 @@
 
 Base URL: `http://localhost:9999/api/v1` (configurable via `BS_PORT`)
 
-All endpoints except health require the header:
+All endpoints except health and version require the header:
 
 ```
 Authorization: Bearer <token>
@@ -24,6 +24,22 @@ No authentication required.
 
 ```json
 {"status": "ok"}
+```
+
+---
+
+## Version
+
+```
+GET /api/v1/version
+```
+
+No authentication required.
+
+**Response** `200`:
+
+```json
+{"version": "0.9.0"}
 ```
 
 ---

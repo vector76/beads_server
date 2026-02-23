@@ -26,6 +26,7 @@ type Config struct {
 	Port      int
 	DataFile  string
 	LogOutput io.Writer // destination for request logs; nil defaults to os.Stdout
+	Version   string    // reported by GET /api/v1/version
 }
 
 // Server is the HTTP server for the beads API.
@@ -62,6 +63,7 @@ func New(cfg Config, p StoreProvider) (*Server, error) {
 	srv.Router.Get("/", srv.handleDashboard)
 	srv.Router.Get("/bead/{project}/{id}", srv.handleBeadDetail)
 	srv.Router.Get("/api/v1/health", srv.handleHealth)
+	srv.Router.Get("/api/v1/version", srv.handleVersion)
 
 	// All other API routes require auth
 	srv.Router.Group(func(r chi.Router) {
@@ -124,6 +126,12 @@ func (s *Server) authMiddleware(next http.Handler) http.Handler {
 func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"status": "ok"})
+}
+
+// handleVersion returns the server version.
+func (s *Server) handleVersion(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"version": s.config.Version})
 }
 
 // requestLogger logs one line per request: method, path, status, and duration.
