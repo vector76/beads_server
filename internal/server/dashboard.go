@@ -130,6 +130,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <html{{if .Theme}} data-theme="{{.Theme}}"{{end}}>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Beads Dashboard</title>
 <style>
   :root {
@@ -162,9 +163,11 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
   h1 { margin-bottom: 0.2em; }
   h2 { border-bottom: 1px solid var(--color-border-subtle); padding-bottom: 0.2em; }
   h3 { margin-top: 1.2em; }
+  .table-wrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; margin-bottom: 1em; }
   th, td { text-align: left; padding: 0.35em 0.7em; border: 1px solid var(--color-border); }
   th { background: var(--color-bg-header); }
+  @media (max-width: 600px) { body { margin: 0.75em; } }
   .counts { display: flex; gap: 0.8em; flex-wrap: wrap; }
   .counts div { padding: 0.3em 0.7em; border-radius: 4px; background: var(--color-bg-badge); font-size: 0.9em; }
   .counts div.badge-yellow { background: var(--color-bg-badge-yellow); }
@@ -195,34 +198,34 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 
 {{if .NotReady}}
 <h3>Not Ready</h3>
-<table>
+<div class="table-wrap"><table>
 <tr><th style="width:1.5em"></th><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
 {{range .NotReady}}<tr><td>{{if .Blocked}}🔒{{end}}</td><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
-{{end}}</table>
+{{end}}</table></div>
 {{end}}
 
 {{if .InProgress}}
 <h3>In Progress</h3>
-<table>
+<div class="table-wrap"><table>
 <tr><th>ID</th><th>Title</th><th>Assignee</th><th>Priority</th><th>Updated</th></tr>
 {{range .InProgress}}<tr><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Assignee}}</td><td>{{.Priority}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
-{{end}}</table>
+{{end}}</table></div>
 {{end}}
 
 {{if .Open}}
 <h3>Open</h3>
-<table>
+<div class="table-wrap"><table>
 <tr><th style="width:1.5em"></th><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
 {{range .Open}}<tr><td>{{if .Blocked}}🔒{{end}}</td><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
-{{end}}</table>
+{{end}}</table></div>
 {{end}}
 
 {{if .Closed}}
 <h3>Closed ({{len .Closed}})</h3>
-<table>
+<div class="table-wrap"><table>
 <tr><th>ID</th><th>Title</th><th>Priority</th><th>Updated</th></tr>
 {{range .Closed}}<tr><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
-{{end}}</table>
+{{end}}</table></div>
 {{end}}
 
 </details>
@@ -279,6 +282,7 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
 <html{{if .Theme}} data-theme="{{.Theme}}"{{end}}>
 <head>
 <meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{.Bead.ID}} — {{.Bead.Title}}</title>
 <style>
   :root {
@@ -314,9 +318,11 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
   .meta div { padding: 0.4em 0.8em; border-radius: 4px; background: var(--color-bg-badge); }
   .description { background: var(--color-bg-subtle); border: 1px solid var(--color-border-light); padding: 1em; border-radius: 4px; margin-bottom: 1em; }
   .tags span { display: inline-block; background: var(--color-bg-tag); padding: 0.2em 0.6em; border-radius: 3px; margin-right: 0.4em; font-size: 0.9em; }
+  .table-wrap { overflow-x: auto; }
   table { border-collapse: collapse; width: 100%; margin-bottom: 1em; }
   th, td { text-align: left; padding: 0.35em 0.7em; border: 1px solid var(--color-border); }
   th { background: var(--color-bg-header); }
+  @media (max-width: 600px) { body { margin: 0.75em; } }
   .comment { border: 1px solid var(--color-border-light); padding: 0.8em; margin-bottom: 0.5em; border-radius: 4px; }
   .comment-meta { font-size: 0.85em; color: var(--color-text-secondary); margin-bottom: 0.3em; }
   .comment-text { white-space: pre-wrap; }
@@ -356,20 +362,20 @@ var beadDetailTmpl = template.Must(template.New("bead-detail").Funcs(template.Fu
 {{if .ActiveBlockers}}
 <div class="section">
 <h3>Blocked By (Active)</h3>
-<table>
+<div class="table-wrap"><table>
 <tr><th>ID</th><th>Title</th><th>Status</th><th>Priority</th></tr>
 {{range .ActiveBlockers}}<tr><td><a href="/bead/{{$.Project}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Status}}</td><td>{{.Priority}}</td></tr>
-{{end}}</table>
+{{end}}</table></div>
 </div>
 {{end}}
 
 {{if .ResolvedBlockers}}
 <div class="section">
 <h3>Blocked By (Resolved)</h3>
-<table>
+<div class="table-wrap"><table>
 <tr><th>ID</th><th>Title</th><th>Status</th><th>Priority</th></tr>
 {{range .ResolvedBlockers}}<tr><td><a href="/bead/{{$.Project}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Status}}</td><td>{{.Priority}}</td></tr>
-{{end}}</table>
+{{end}}</table></div>
 </div>
 {{end}}
 
