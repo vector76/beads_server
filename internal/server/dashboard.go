@@ -141,6 +141,8 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
     --color-bg-header: #f5f5f5;
     --color-bg-badge: #f0f0f0;
     --color-text-muted: #555;
+    --color-bg-badge-yellow: #f0d84a;
+    --color-bg-badge-green: #68cc8c;
   }
   [data-theme="dark"] {
     --color-text: #e0e0e0;
@@ -151,6 +153,8 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
     --color-bg-header: #2a2a2a;
     --color-bg-badge: #333;
     --color-text-muted: #aaa;
+    --color-bg-badge-yellow: #4a3c0e;
+    --color-bg-badge-green: #1c4530;
   }
   body { font-family: sans-serif; margin: 2em; color: var(--color-text); background: var(--color-bg-page); }
   a { color: var(--color-link); text-decoration: none; }
@@ -163,6 +167,8 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
   th { background: var(--color-bg-header); }
   .counts { display: flex; gap: 0.8em; flex-wrap: wrap; }
   .counts div { padding: 0.3em 0.7em; border-radius: 4px; background: var(--color-bg-badge); font-size: 0.9em; }
+  .counts div.badge-yellow { background: var(--color-bg-badge-yellow); }
+  .counts div.badge-green { background: var(--color-bg-badge-green); }
   .section { margin-bottom: 2em; border: 1px solid var(--color-border); border-radius: 4px; padding: 0.5em 1em; }
   details.section > summary { cursor: pointer; display: flex; align-items: center; gap: 0.8em; list-style: none; padding: 0.2em 0; }
   details.section > summary::-webkit-details-marker { display: none; }
@@ -180,9 +186,9 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <summary>
   <h2>{{.Name}}</h2>
   <div class="counts">
-    <div><strong>Not Ready:</strong> {{len .NotReady}}</div>
-    <div><strong>Open:</strong> {{len .Open}}</div>
-    <div><strong>In Progress:</strong> {{len .InProgress}}</div>
+    <div{{if .NotReady}} class="badge-yellow"{{end}}><strong>Not Ready:</strong> {{len .NotReady}}</div>
+    <div{{if .Open}} class="badge-green"{{end}}><strong>Open:</strong> {{len .Open}}</div>
+    <div{{if .InProgress}} class="badge-green"{{end}}><strong>In Progress:</strong> {{len .InProgress}}</div>
     <div><strong>Closed:</strong> {{len .Closed}}</div>
   </div>
 </summary>
