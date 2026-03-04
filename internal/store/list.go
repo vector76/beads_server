@@ -21,6 +21,8 @@ type BeadSummary struct {
 	ParentID    string         `json:"parent_id,omitempty"`
 	ParentTitle string         `json:"parent_title,omitempty"`
 	Blocked     bool           `json:"blocked,omitempty"`
+	BlockDepth  int            `json:"block_depth,omitempty"`
+	CreatedAt   time.Time      `json:"created_at"`
 }
 
 // ListFilters specifies filtering criteria for listing beads.
@@ -45,19 +47,65 @@ type ListResult struct {
 	TotalPages int           `json:"total_pages"`
 }
 
-// summaryFromBead builds a BeadSummary for b, including blocked status.
+// summaryFromBead builds a BeadSummary for b, including blocked status and depth.
 // Caller must hold s.mu (at least RLock).
-func (s *Store) summaryFromBead(b model.Bead) BeadSummary {
+func (s *Store) summaryFromBead(b model.Bead, memo map[string]int) BeadSummary {
+	depth := s.computeBlockDepth(b, memo)
 	return BeadSummary{
-		ID:        b.ID,
-		Title:     b.Title,
-		Status:    b.Status,
-		Priority:  b.Priority,
-		Type:      b.Type,
-		Assignee:  b.Assignee,
-		UpdatedAt: b.UpdatedAt,
-		Blocked:   s.hasActiveBlocker(b),
+		ID:         b.ID,
+		Title:      b.Title,
+		Status:     b.Status,
+		Priority:   b.Priority,
+		Type:       b.Type,
+		Assignee:   b.Assignee,
+		UpdatedAt:  b.UpdatedAt,
+		CreatedAt:  b.CreatedAt,
+		Blocked:    depth > 0,
+		BlockDepth: depth,
 	}
+}
+
+// computeBlockDepth returns the dependency depth of a bead.
+// Depth 0 means unblocked. Depth N means blocked, where N is 1 + the max
+// depth of any active blocker (direct or inherited from parent epic).
+// Caller must hold s.mu (at least RLock).
+func (s *Store) computeBlockDepth(b model.Bead, memo map[string]int) int {
+	if v, ok := memo[b.ID]; ok {
+		return v
+	}
+	// Mark as visited with 0 to guard against unexpected cycles.
+	memo[b.ID] = 0
+
+	depth := 0
+	// Check own blockers.
+	for _, bid := range b.BlockedBy {
+		blocker, ok := s.beads[bid]
+		if !ok || !isActiveBlocker(blocker.Status) {
+			continue
+		}
+		d := s.computeBlockDepth(blocker, memo) + 1
+		if d > depth {
+			depth = d
+		}
+	}
+	// Check parent epic's blockers (inherited blocking).
+	if b.ParentID != "" {
+		if parent, ok := s.beads[b.ParentID]; ok {
+			for _, bid := range parent.BlockedBy {
+				blocker, ok := s.beads[bid]
+				if !ok || !isActiveBlocker(blocker.Status) {
+					continue
+				}
+				d := s.computeBlockDepth(blocker, memo) + 1
+				if d > depth {
+					depth = d
+				}
+			}
+		}
+	}
+
+	memo[b.ID] = depth
+	return depth
 }
 
 // isActiveBlocker returns true if the status counts as an active blocker.
@@ -121,9 +169,10 @@ func (s *Store) listFlat(filters ListFilters, statusSet map[model.Status]bool) L
 
 	total := len(matched)
 	page := paginate(matched, filters.Page, filters.PerPage)
+	memo := make(map[string]int)
 	summaries := make([]BeadSummary, len(page))
 	for i, b := range page {
-		sum := s.summaryFromBead(b)
+		sum := s.summaryFromBead(b, memo)
 		if b.ParentID != "" {
 			sum.ParentID = b.ParentID
 			if parent, ok := s.beads[b.ParentID]; ok {
@@ -168,9 +217,10 @@ func (s *Store) listHierarchical(filters ListFilters, statusSet map[model.Status
 
 	total := len(topLevel)
 	page := paginate(topLevel, filters.Page, filters.PerPage)
+	memo := make(map[string]int)
 	summaries := make([]BeadSummary, len(page))
 	for i, b := range page {
-		sum := s.summaryFromBead(b)
+		sum := s.summaryFromBead(b, memo)
 		children := s.childrenOf(b.ID)
 		if len(children) > 0 {
 			sum.IsEpic = true
@@ -181,7 +231,7 @@ func (s *Store) listHierarchical(filters ListFilters, statusSet map[model.Status
 				if c.Status == model.StatusDeleted {
 					continue
 				}
-				childSummaries = append(childSummaries, s.summaryFromBead(c))
+				childSummaries = append(childSummaries, s.summaryFromBead(c, memo))
 			}
 			if childSummaries == nil {
 				childSummaries = []BeadSummary{}

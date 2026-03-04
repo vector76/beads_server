@@ -1234,11 +1234,11 @@ func TestDashboardBlockedIndicator_OpenLifecycle(t *testing.T) {
 	// 2. Link: blocked is blocked by blocker
 	run(t, "link", blocked.ID, "--blocked-by", blocker.ID)
 
-	// 3. Dashboard should show the lock emoji for the blocked bead in Open section
+	// 3. Dashboard should show the lock emoji with depth for the blocked bead in Open section
 	body := fetchDashboard(t, ts.URL)
-	lockedRow := `🔒</td><td><a href="/bead/default/` + blocked.ID + `">`
+	lockedRow := `🔒1</td><td><a href="/bead/default/` + blocked.ID + `">`
 	if !strings.Contains(body, lockedRow) {
-		t.Errorf("expected lock emoji in Open section for blocked bead %s; body:\n%s", blocked.ID, body)
+		t.Errorf("expected lock emoji with depth in Open section for blocked bead %s; body:\n%s", blocked.ID, body)
 	}
 
 	// 4. Close the blocker
@@ -1265,11 +1265,11 @@ func TestDashboardBlockedIndicator_NotReadyLifecycle(t *testing.T) {
 
 	run(t, "link", blocked.ID, "--blocked-by", blocker.ID)
 
-	// 2. Dashboard should show lock in Not Ready section
+	// 2. Dashboard should show lock with depth in Not Ready section
 	body := fetchDashboard(t, ts.URL)
-	lockedRow := `🔒</td><td><a href="/bead/default/` + blocked.ID + `">`
+	lockedRow := `🔒1</td><td><a href="/bead/default/` + blocked.ID + `">`
 	if !strings.Contains(body, lockedRow) {
-		t.Errorf("expected lock emoji in Not Ready section for blocked bead %s; body:\n%s", blocked.ID, body)
+		t.Errorf("expected lock emoji with depth in Not Ready section for blocked bead %s; body:\n%s", blocked.ID, body)
 	}
 
 	// 3. Close the blocker — lock should disappear

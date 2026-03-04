@@ -47,9 +47,9 @@ func (s *Server) handleDashboard(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		sortByUpdatedDesc(dp.InProgress)
-		sortByUpdatedDesc(dp.Open)
+		sortByDepthThenOldest(dp.Open)
 		sortByUpdatedDesc(dp.Closed)
-		sortByUpdatedDesc(dp.NotReady)
+		sortByDepthThenOldest(dp.NotReady)
 		data.Projects = append(data.Projects, dp)
 	}
 
@@ -117,6 +117,17 @@ func (s *Server) handleBeadDetail(w http.ResponseWriter, r *http.Request) {
 func sortByUpdatedDesc(beads []store.BeadSummary) {
 	sort.Slice(beads, func(i, j int) bool {
 		return beads[j].UpdatedAt.Before(beads[i].UpdatedAt)
+	})
+}
+
+// sortByDepthThenOldest sorts beads by BlockDepth ascending (unblocked first),
+// then by CreatedAt ascending (oldest first) within equal depth.
+func sortByDepthThenOldest(beads []store.BeadSummary) {
+	sort.Slice(beads, func(i, j int) bool {
+		if beads[i].BlockDepth != beads[j].BlockDepth {
+			return beads[i].BlockDepth < beads[j].BlockDepth
+		}
+		return beads[i].CreatedAt.Before(beads[j].CreatedAt)
 	})
 }
 
@@ -200,7 +211,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <h3>Not Ready</h3>
 <div class="table-wrap"><table>
 <tr><th style="width:1.5em"></th><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
-{{range .NotReady}}<tr><td>{{if .Blocked}}🔒{{end}}</td><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
+{{range .NotReady}}<tr><td>{{if .Blocked}}🔒{{.BlockDepth}}{{end}}</td><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
 {{end}}</table></div>
 {{end}}
 
@@ -216,7 +227,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <h3>Open</h3>
 <div class="table-wrap"><table>
 <tr><th style="width:1.5em"></th><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
-{{range .Open}}<tr><td>{{if .Blocked}}🔒{{end}}</td><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
+{{range .Open}}<tr><td>{{if .Blocked}}🔒{{.BlockDepth}}{{end}}</td><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
 {{end}}</table></div>
 {{end}}
 

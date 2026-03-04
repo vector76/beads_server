@@ -73,9 +73,10 @@ func (s *Store) Search(query string, page, perPage int) ListResult {
 	}
 
 	pageSlice := matched[start:end]
+	memo := make(map[string]int)
 	summaries := make([]BeadSummary, len(pageSlice))
 	for i, b := range pageSlice {
-		sum := s.summaryFromBead(b)
+		sum := s.summaryFromBead(b, memo)
 		if b.ParentID != "" {
 			sum.ParentID = b.ParentID
 			if parent, ok := s.beads[b.ParentID]; ok {

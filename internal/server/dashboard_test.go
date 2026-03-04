@@ -36,11 +36,37 @@ func TestSortByUpdatedDesc_Empty(t *testing.T) {
 	sortByUpdatedDesc([]store.BeadSummary{{ID: "bd-only"}})
 }
 
+func TestSortByDepthThenOldest(t *testing.T) {
+	now := time.Now().UTC()
+	beads := []store.BeadSummary{
+		{ID: "bd-d1-new", BlockDepth: 1, CreatedAt: now},
+		{ID: "bd-d0-old", BlockDepth: 0, CreatedAt: now.Add(-3 * time.Hour)},
+		{ID: "bd-d0-new", BlockDepth: 0, CreatedAt: now},
+		{ID: "bd-d2", BlockDepth: 2, CreatedAt: now},
+		{ID: "bd-d1-old", BlockDepth: 1, CreatedAt: now.Add(-1 * time.Hour)},
+	}
+
+	sortByDepthThenOldest(beads)
+
+	expected := []string{"bd-d0-old", "bd-d0-new", "bd-d1-old", "bd-d1-new", "bd-d2"}
+	for i, want := range expected {
+		if beads[i].ID != want {
+			t.Errorf("position %d: got %s, want %s", i, beads[i].ID, want)
+		}
+	}
+}
+
+func TestSortByDepthThenOldest_Empty(t *testing.T) {
+	// Should not panic on empty or single-element slices.
+	sortByDepthThenOldest(nil)
+	sortByDepthThenOldest([]store.BeadSummary{})
+	sortByDepthThenOldest([]store.BeadSummary{{ID: "bd-only"}})
+}
+
 func TestDashboardSortOrder(t *testing.T) {
 	srv := crudServer(t)
 
-	// Create beads with different statuses.
-	// Create them in order so UpdatedAt differs.
+	// Create two open beads with different creation times.
 	b1 := createViaAPI(t, srv, map[string]any{"title": "Open old", "status": "open"})
 	time.Sleep(10 * time.Millisecond)
 	b2 := createViaAPI(t, srv, map[string]any{"title": "Open new", "status": "open"})
@@ -55,15 +81,16 @@ func TestDashboardSortOrder(t *testing.T) {
 
 	body := w.Body.String()
 
-	// "Open new" should appear before "Open old" in the HTML
+	// Open section sorts by depth (asc) then oldest-first.
+	// Both beads are unblocked (depth 0), so "Open old" should appear before "Open new".
 	posNew := strings.Index(body, b2.Title)
 	posOld := strings.Index(body, b1.Title)
 
 	if posNew == -1 || posOld == -1 {
 		t.Fatalf("expected both beads in HTML; got body:\n%s", body)
 	}
-	if posNew >= posOld {
-		t.Errorf("expected %q (newer) before %q (older) in dashboard", b2.Title, b1.Title)
+	if posOld >= posNew {
+		t.Errorf("expected %q (older) before %q (newer) in dashboard Open section", b1.Title, b2.Title)
 	}
 }
 
@@ -423,8 +450,9 @@ func TestDashboardSortOrderNotReady(t *testing.T) {
 	if posNew == -1 || posOld == -1 {
 		t.Fatalf("expected both not_ready beads in HTML")
 	}
-	if posNew >= posOld {
-		t.Errorf("expected %q (newer) before %q (older) in Not Ready section", b2.Title, b1.Title)
+	// Not Ready section sorts by depth (asc) then oldest-first.
+	if posOld >= posNew {
+		t.Errorf("expected %q (older) before %q (newer) in Not Ready section", b1.Title, b2.Title)
 	}
 }
 
@@ -460,11 +488,10 @@ func TestDashboardBlockedIndicator_OpenSectionBlocked(t *testing.T) {
 
 	body := getDashboard(t, srv)
 
-	// The lock emoji must appear in the Open section row for the blocked bead.
-	// We verify by checking that the row containing the blocked bead ID also contains the lock emoji.
-	blockedRow := `<td>🔒</td><td><a href="/bead/default/` + blocked.ID + `">`
+	// The lock emoji with depth must appear in the Open section row for the blocked bead.
+	blockedRow := `<td>🔒1</td><td><a href="/bead/default/` + blocked.ID + `">`
 	if !strings.Contains(body, blockedRow) {
-		t.Errorf("expected lock emoji in Open section row for blocked bead, body:\n%s", body)
+		t.Errorf("expected lock emoji with depth in Open section row for blocked bead, body:\n%s", body)
 	}
 }
 
@@ -489,9 +516,9 @@ func TestDashboardBlockedIndicator_NotReadySectionBlocked(t *testing.T) {
 
 	body := getDashboard(t, srv)
 
-	blockedRow := `<td>🔒</td><td><a href="/bead/default/` + blocked.ID + `">`
+	blockedRow := `<td>🔒1</td><td><a href="/bead/default/` + blocked.ID + `">`
 	if !strings.Contains(body, blockedRow) {
-		t.Errorf("expected lock emoji in Not Ready section row for blocked bead, body:\n%s", body)
+		t.Errorf("expected lock emoji with depth in Not Ready section row for blocked bead, body:\n%s", body)
 	}
 }
 
@@ -936,6 +963,58 @@ func TestBeadDetailNoCookieIntegration(t *testing.T) {
 	}
 	if !strings.Contains(body, `aria-label="Toggle dark mode"`) {
 		t.Error("expected toggle button present on bead detail page with no cookie")
+	}
+}
+
+func TestDashboardDepthShownNextToLock(t *testing.T) {
+	srv := crudServer(t)
+
+	// Create a chain: C blocks B blocks A → A has depth 2, B has depth 1
+	c := createViaAPI(t, srv, map[string]any{"title": "Chain C", "status": "open"})
+	b := createViaAPI(t, srv, map[string]any{"title": "Chain B", "status": "open"})
+	a := createViaAPI(t, srv, map[string]any{"title": "Chain A", "status": "open"})
+	linkBeads(t, srv, b.ID, c.ID)
+	linkBeads(t, srv, a.ID, b.ID)
+
+	body := getDashboard(t, srv)
+
+	depth1Row := `<td>🔒1</td><td><a href="/bead/default/` + b.ID + `">`
+	if !strings.Contains(body, depth1Row) {
+		t.Errorf("expected 🔒1 for depth-1 bead %s", b.ID)
+	}
+
+	depth2Row := `<td>🔒2</td><td><a href="/bead/default/` + a.ID + `">`
+	if !strings.Contains(body, depth2Row) {
+		t.Errorf("expected 🔒2 for depth-2 bead %s", a.ID)
+	}
+}
+
+func TestDashboardSortByDepthThenOldest(t *testing.T) {
+	srv := crudServer(t)
+
+	// Create: blocker (unblocked, depth 0), blocked (depth 1), another unblocked (depth 0, newer)
+	blocker := createViaAPI(t, srv, map[string]any{"title": "Depth0 oldest", "status": "open"})
+	time.Sleep(10 * time.Millisecond)
+	blocked := createViaAPI(t, srv, map[string]any{"title": "Depth1 item", "status": "open"})
+	linkBeads(t, srv, blocked.ID, blocker.ID)
+	time.Sleep(10 * time.Millisecond)
+	unblocked2 := createViaAPI(t, srv, map[string]any{"title": "Depth0 newest", "status": "open"})
+
+	body := getDashboard(t, srv)
+
+	// Expected order in Open section: Depth0 oldest, Depth0 newest, Depth1 item
+	pos0old := strings.Index(body, blocker.Title)
+	pos0new := strings.Index(body, unblocked2.Title)
+	pos1 := strings.Index(body, blocked.Title)
+
+	if pos0old == -1 || pos0new == -1 || pos1 == -1 {
+		t.Fatalf("expected all three beads in HTML")
+	}
+	if pos0old >= pos0new {
+		t.Errorf("expected %q (depth 0, older) before %q (depth 0, newer)", blocker.Title, unblocked2.Title)
+	}
+	if pos0new >= pos1 {
+		t.Errorf("expected %q (depth 0) before %q (depth 1)", unblocked2.Title, blocked.Title)
 	}
 }
 

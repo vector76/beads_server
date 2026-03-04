@@ -565,6 +565,146 @@ func TestSummaryBlocked_GrandparentDoesNotPropagate(t *testing.T) {
 	}
 }
 
+// --- BlockDepth in BeadSummary ---
+
+func TestBlockDepth_Unblocked(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	now := time.Now().UTC()
+	b := newBeadWithFields("bd-dp000001", "Unblocked", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	s.Create(b)
+
+	result := s.List(ListFilters{All: true})
+	sum := findSummary(result.Beads, "bd-dp000001")
+	if sum == nil {
+		t.Fatal("bead not found")
+	}
+	if sum.BlockDepth != 0 {
+		t.Errorf("expected BlockDepth=0, got %d", sum.BlockDepth)
+	}
+}
+
+func TestBlockDepth_DirectBlocker(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	now := time.Now().UTC()
+	blocker := newBeadWithFields("bd-dp000002", "Blocker", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	target := newBeadWithFields("bd-dp000003", "Target", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-dp000002"}, now)
+	s.Create(blocker)
+	s.Create(target)
+
+	result := s.List(ListFilters{All: true})
+	sum := findSummary(result.Beads, "bd-dp000003")
+	if sum == nil {
+		t.Fatal("target not found")
+	}
+	if sum.BlockDepth != 1 {
+		t.Errorf("expected BlockDepth=1, got %d", sum.BlockDepth)
+	}
+}
+
+func TestBlockDepth_Chain(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	now := time.Now().UTC()
+	// C blocks B blocks A → A has depth 2
+	c := newBeadWithFields("bd-dp000004", "C", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	b := newBeadWithFields("bd-dp000005", "B", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-dp000004"}, now)
+	a := newBeadWithFields("bd-dp000006", "A", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-dp000005"}, now)
+	s.Create(c)
+	s.Create(b)
+	s.Create(a)
+
+	result := s.List(ListFilters{All: true})
+
+	sumB := findSummary(result.Beads, "bd-dp000005")
+	if sumB == nil {
+		t.Fatal("B not found")
+	}
+	if sumB.BlockDepth != 1 {
+		t.Errorf("B: expected BlockDepth=1, got %d", sumB.BlockDepth)
+	}
+
+	sumA := findSummary(result.Beads, "bd-dp000006")
+	if sumA == nil {
+		t.Fatal("A not found")
+	}
+	if sumA.BlockDepth != 2 {
+		t.Errorf("A: expected BlockDepth=2, got %d", sumA.BlockDepth)
+	}
+}
+
+func TestBlockDepth_MaxOfMultiple(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	now := time.Now().UTC()
+	// D blocks C (depth 1), E is unblocked (depth 0)
+	// A is blocked by both C (depth 1) and E (depth 0) → A depth = max(1+1, 0+1) = 2
+	d := newBeadWithFields("bd-dp000007", "D", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	c := newBeadWithFields("bd-dp000008", "C", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-dp000007"}, now)
+	e := newBeadWithFields("bd-dp000009", "E", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	a := newBeadWithFields("bd-dp000010", "A", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-dp000008", "bd-dp000009"}, now)
+	s.Create(d)
+	s.Create(c)
+	s.Create(e)
+	s.Create(a)
+
+	result := s.List(ListFilters{All: true})
+	sum := findSummary(result.Beads, "bd-dp000010")
+	if sum == nil {
+		t.Fatal("A not found")
+	}
+	if sum.BlockDepth != 2 {
+		t.Errorf("expected BlockDepth=2 (max of chains), got %d", sum.BlockDepth)
+	}
+}
+
+func TestBlockDepth_ResolvedBlockerIgnored(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	now := time.Now().UTC()
+	blocker := newBeadWithFields("bd-dp000011", "Closed blocker", model.StatusClosed, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	target := newBeadWithFields("bd-dp000012", "Target", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, []string{"bd-dp000011"}, now)
+	s.Create(blocker)
+	s.Create(target)
+
+	result := s.List(ListFilters{All: true})
+	sum := findSummary(result.Beads, "bd-dp000012")
+	if sum == nil {
+		t.Fatal("target not found")
+	}
+	if sum.BlockDepth != 0 {
+		t.Errorf("expected BlockDepth=0 (closed blocker ignored), got %d", sum.BlockDepth)
+	}
+}
+
+func TestBlockDepth_InheritedFromParent(t *testing.T) {
+	s, _ := Load(tempPath(t))
+	now := time.Now().UTC()
+	blocker := newBeadWithFields("bd-dp000013", "Epic blocker", model.StatusOpen, model.PriorityMedium, model.TypeTask, "", nil, nil, now)
+	epic := model.Bead{
+		ID: "bd-dp000014", Title: "Epic", Status: model.StatusOpen,
+		Priority: model.PriorityMedium, Type: model.TypeFeature,
+		BlockedBy: []string{"bd-dp000013"},
+		Comments:  []model.Comment{}, CreatedAt: now, UpdatedAt: now,
+	}
+	child := model.Bead{
+		ID: "bd-dp000015", Title: "Child", Status: model.StatusOpen,
+		Priority: model.PriorityMedium, Type: model.TypeTask,
+		ParentID: "bd-dp000014",
+		Comments: []model.Comment{}, CreatedAt: now, UpdatedAt: now,
+	}
+	s.Create(blocker)
+	s.Create(epic)
+	s.Create(child)
+
+	// Use flat mode so child appears as top-level summary.
+	assignee := ""
+	result := s.List(ListFilters{Assignee: &assignee, All: true})
+	sum := findSummary(result.Beads, "bd-dp000015")
+	if sum == nil {
+		t.Fatal("child not found")
+	}
+	if sum.BlockDepth != 1 {
+		t.Errorf("expected BlockDepth=1 (inherited from parent epic), got %d", sum.BlockDepth)
+	}
+}
+
 func TestSummaryBlocked_MixedResolvedDirectAndActiveParent(t *testing.T) {
 	s, _ := Load(tempPath(t))
 	now := time.Now().UTC()
