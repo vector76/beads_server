@@ -210,8 +210,8 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 {{if .NotReady}}
 <h3>Not Ready</h3>
 <div class="table-wrap"><table>
-<tr><th style="width:1.5em"></th><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
-{{range .NotReady}}<tr><td>{{if .Blocked}}🔒{{.BlockDepth}}{{end}}</td><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
+<tr><th style="width:3em; padding:0.2em 0.3em"></th><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
+{{range .NotReady}}<tr><td style="white-space:nowrap; padding:0.2em 0.3em">{{if .Blocked}}🔒{{.BlockDepth}}{{end}}</td><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
 {{end}}</table></div>
 {{end}}
 
@@ -226,8 +226,8 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 {{if .Open}}
 <h3>Open</h3>
 <div class="table-wrap"><table>
-<tr><th style="width:1.5em"></th><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
-{{range .Open}}<tr><td>{{if .Blocked}}🔒{{.BlockDepth}}{{end}}</td><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
+<tr><th style="width:3em; padding:0.2em 0.3em"></th><th>ID</th><th>Title</th><th>Priority</th><th>Type</th><th>Updated</th></tr>
+{{range .Open}}<tr><td style="white-space:nowrap; padding:0.2em 0.3em">{{if .Blocked}}🔒{{.BlockDepth}}{{end}}</td><td><a href="/bead/{{$proj}}/{{.ID}}">{{.ID}}</a></td><td>{{.Title}}</td><td>{{.Priority}}</td><td>{{.Type}}</td><td>{{fmtTime .UpdatedAt}}</td></tr>
 {{end}}</table></div>
 {{end}}
 
