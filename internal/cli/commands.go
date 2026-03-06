@@ -147,6 +147,7 @@ func newEditCmd() *cobra.Command {
 	var assignee string
 	var addTags []string
 	var removeTags []string
+	var blockedBy []string
 
 	cmd := &cobra.Command{
 		Use:   "edit <id>",
@@ -184,13 +185,26 @@ func newEditCmd() *cobra.Command {
 				body["remove_tags"] = removeTags
 			}
 
-			if len(body) == 0 {
+			if len(body) == 0 && len(blockedBy) == 0 {
 				return fmt.Errorf("no fields to update")
 			}
 
-			data, err := c.Do("PATCH", "/api/v1/beads/"+args[0], body)
-			if err != nil {
-				return err
+			var data []byte
+			if len(body) > 0 {
+				data, err = c.Do("PATCH", "/api/v1/beads/"+args[0], body)
+				if err != nil {
+					return err
+				}
+			}
+
+			for _, dep := range blockedBy {
+				linkBody := map[string]any{
+					"blocked_by": dep,
+				}
+				data, err = c.Do("POST", "/api/v1/beads/"+args[0]+"/link", linkBody)
+				if err != nil {
+					return err
+				}
 			}
 
 			out, err := prettyJSON(data)
@@ -210,6 +224,7 @@ func newEditCmd() *cobra.Command {
 	cmd.Flags().StringVar(&assignee, "assignee", "", "assignee")
 	cmd.Flags().StringSliceVar(&addTags, "add-tag", nil, "add a tag")
 	cmd.Flags().StringSliceVar(&removeTags, "remove-tag", nil, "remove a tag")
+	cmd.Flags().StringSliceVar(&blockedBy, "blocked-by", nil, "add dependency (ID of blocking bead, repeatable)")
 
 	return cmd
 }

@@ -215,14 +215,14 @@ func newCommentCmd() *cobra.Command {
 }
 
 func newLinkCmd() *cobra.Command {
-	var blockedBy string
+	var blockedBy []string
 
 	cmd := &cobra.Command{
 		Use:   "link <id>",
 		Short: "Add a dependency to a bead",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if blockedBy == "" {
+			if len(blockedBy) == 0 {
 				return fmt.Errorf("--blocked-by is required")
 			}
 
@@ -231,13 +231,15 @@ func newLinkCmd() *cobra.Command {
 				return err
 			}
 
-			body := map[string]any{
-				"blocked_by": blockedBy,
-			}
-
-			data, err := c.Do("POST", "/api/v1/beads/"+args[0]+"/link", body)
-			if err != nil {
-				return err
+			var data []byte
+			for _, dep := range blockedBy {
+				body := map[string]any{
+					"blocked_by": dep,
+				}
+				data, err = c.Do("POST", "/api/v1/beads/"+args[0]+"/link", body)
+				if err != nil {
+					return err
+				}
 			}
 
 			out, err := prettyJSON(data)
@@ -249,7 +251,7 @@ func newLinkCmd() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().StringVar(&blockedBy, "blocked-by", "", "ID of the blocking bead")
+	cmd.Flags().StringSliceVar(&blockedBy, "blocked-by", nil, "add dependency (ID of blocking bead, repeatable)")
 
 	return cmd
 }

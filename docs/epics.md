@@ -107,7 +107,7 @@ The existing circular dependency check follows explicit `blocked_by` chains and 
 | `bs close` | **Rejected** (derived) | Normal (triggers parent recomputation) |
 | `bs reopen` | **Rejected** (derived) | Normal (triggers parent recomputation) |
 | `bs edit --status` | **Rejected** (derived) | Normal (triggers parent recomputation) |
-| `bs edit` (other fields) | Allowed (title, description, priority, type, assignee, tags) | Normal |
+| `bs edit` (other fields) | Allowed (title, description, priority, type, assignee, tags, blocked-by) | Normal |
 | `bs comment` | Allowed | Allowed |
 | `bs link` / `bs unlink` | Allowed | Allowed |
 | `bs delete` | **Only if all children are closed or deleted** | Normal (triggers parent recomputation) |

@@ -361,6 +361,28 @@ func TestLinkUnlinkDeps(t *testing.T) {
 	}
 }
 
+func TestLink_MultipleBlockedBy(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "add", "Blocker A")
+	blockerA := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Blocker B")
+	blockerB := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Target")
+	target := parseBeadFromOutput(t, out)
+
+	// Comma-separated
+	out = runCmd(t, "link", target.ID, "--blocked-by", blockerA.ID+","+blockerB.ID)
+	linked := parseBeadFromOutput(t, out)
+
+	if len(linked.BlockedBy) != 2 {
+		t.Fatalf("blocked_by = %v, want 2 entries", linked.BlockedBy)
+	}
+}
+
 func TestLink_MissingBlockedBy(t *testing.T) {
 	ts := startTestServer(t)
 	setClientEnv(t, ts.URL)

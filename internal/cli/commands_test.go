@@ -248,6 +248,92 @@ func TestEdit_NoFlags(t *testing.T) {
 	}
 }
 
+func TestEdit_BlockedBy(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	// Create two beads
+	out := runCmd(t, "add", "Blocker bead")
+	blocker := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Blocked bead")
+	blocked := parseBeadFromOutput(t, out)
+
+	// Use edit --blocked-by to add the dependency
+	out = runCmd(t, "edit", blocked.ID, "--blocked-by", blocker.ID)
+	edited := parseBeadFromOutput(t, out)
+
+	if len(edited.BlockedBy) != 1 || edited.BlockedBy[0] != blocker.ID {
+		t.Errorf("blocked_by = %v, want [%s]", edited.BlockedBy, blocker.ID)
+	}
+}
+
+func TestEdit_BlockedByWithOtherFields(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "add", "Blocker")
+	blocker := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Target")
+	target := parseBeadFromOutput(t, out)
+
+	// Edit title and add dependency in one command
+	out = runCmd(t, "edit", target.ID, "--title", "Updated target", "--blocked-by", blocker.ID)
+	edited := parseBeadFromOutput(t, out)
+
+	if edited.Title != "Updated target" {
+		t.Errorf("title = %q, want %q", edited.Title, "Updated target")
+	}
+	if len(edited.BlockedBy) != 1 || edited.BlockedBy[0] != blocker.ID {
+		t.Errorf("blocked_by = %v, want [%s]", edited.BlockedBy, blocker.ID)
+	}
+}
+
+func TestEdit_BlockedByMultiple(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "add", "Blocker A")
+	blockerA := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Blocker B")
+	blockerB := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Target")
+	target := parseBeadFromOutput(t, out)
+
+	// Comma-separated
+	out = runCmd(t, "edit", target.ID, "--blocked-by", blockerA.ID+","+blockerB.ID)
+	edited := parseBeadFromOutput(t, out)
+
+	if len(edited.BlockedBy) != 2 {
+		t.Fatalf("blocked_by = %v, want 2 entries", edited.BlockedBy)
+	}
+}
+
+func TestEdit_BlockedByRepeatedFlag(t *testing.T) {
+	ts := startTestServer(t)
+	setClientEnv(t, ts.URL)
+
+	out := runCmd(t, "add", "Blocker A")
+	blockerA := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Blocker B")
+	blockerB := parseBeadFromOutput(t, out)
+
+	out = runCmd(t, "add", "Target")
+	target := parseBeadFromOutput(t, out)
+
+	// Repeated --blocked-by flags
+	out = runCmd(t, "edit", target.ID, "--blocked-by", blockerA.ID, "--blocked-by", blockerB.ID)
+	edited := parseBeadFromOutput(t, out)
+
+	if len(edited.BlockedBy) != 2 {
+		t.Fatalf("blocked_by = %v, want 2 entries", edited.BlockedBy)
+	}
+}
+
 func TestClean_RemovesClosedBeads(t *testing.T) {
 	ts := startTestServer(t)
 	setClientEnv(t, ts.URL)
