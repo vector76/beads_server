@@ -489,7 +489,7 @@ func TestDashboardBlockedIndicator_OpenSectionBlocked(t *testing.T) {
 	body := getDashboard(t, srv)
 
 	// The lock emoji with depth must appear in the Open section row for the blocked bead.
-	blockedRow := `<td>🔒1</td><td><a href="/bead/default/` + blocked.ID + `">`
+	blockedRow := `<td style="white-space:nowrap; padding:0.2em 0.3em">🔒1</td><td><a href="/bead/default/` + blocked.ID + `">`
 	if !strings.Contains(body, blockedRow) {
 		t.Errorf("expected lock emoji with depth in Open section row for blocked bead, body:\n%s", body)
 	}
@@ -516,7 +516,7 @@ func TestDashboardBlockedIndicator_NotReadySectionBlocked(t *testing.T) {
 
 	body := getDashboard(t, srv)
 
-	blockedRow := `<td>🔒1</td><td><a href="/bead/default/` + blocked.ID + `">`
+	blockedRow := `<td style="white-space:nowrap; padding:0.2em 0.3em">🔒1</td><td><a href="/bead/default/` + blocked.ID + `">`
 	if !strings.Contains(body, blockedRow) {
 		t.Errorf("expected lock emoji with depth in Not Ready section row for blocked bead, body:\n%s", body)
 	}
@@ -978,12 +978,12 @@ func TestDashboardDepthShownNextToLock(t *testing.T) {
 
 	body := getDashboard(t, srv)
 
-	depth1Row := `<td>🔒1</td><td><a href="/bead/default/` + b.ID + `">`
+	depth1Row := `<td style="white-space:nowrap; padding:0.2em 0.3em">🔒1</td><td><a href="/bead/default/` + b.ID + `">`
 	if !strings.Contains(body, depth1Row) {
 		t.Errorf("expected 🔒1 for depth-1 bead %s", b.ID)
 	}
 
-	depth2Row := `<td>🔒2</td><td><a href="/bead/default/` + a.ID + `">`
+	depth2Row := `<td style="white-space:nowrap; padding:0.2em 0.3em">🔒2</td><td><a href="/bead/default/` + a.ID + `">`
 	if !strings.Contains(body, depth2Row) {
 		t.Errorf("expected 🔒2 for depth-2 bead %s", a.ID)
 	}
