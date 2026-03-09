@@ -142,6 +142,14 @@ func (s *Store) save() error {
 // At IDMaxLen, it retries indefinitely.
 // Caller must hold s.mu.
 func (s *Store) generateUniqueID() string {
+	return s.generateUniqueIDExcluding(nil)
+}
+
+// generateUniqueIDExcluding creates a collision-free bead ID, also excluding
+// any IDs in the provided set (used for cross-project uniqueness).
+// Same retry/length-escalation logic as generateUniqueID.
+// Caller must hold s.mu.
+func (s *Store) generateUniqueIDExcluding(excluded map[string]struct{}) string {
 	for n := model.IDMinLen; n <= model.IDMaxLen; n++ {
 		retries := 3
 		if n == model.IDMaxLen {
@@ -149,9 +157,13 @@ func (s *Store) generateUniqueID() string {
 		}
 		for i := 0; i < retries; i++ {
 			id := model.GenerateIDN(n)
-			if _, exists := s.beads[id]; !exists {
-				return id
+			if _, exists := s.beads[id]; exists {
+				continue
 			}
+			if _, inExcluded := excluded[id]; inExcluded {
+				continue
+			}
+			return id
 		}
 	}
 	// Should never reach here given 36^8 possible IDs.
@@ -161,11 +173,18 @@ func (s *Store) generateUniqueID() string {
 // Create adds a bead to the store and persists to disk.
 // If b.ID is empty, a collision-free ID is generated automatically.
 func (s *Store) Create(b model.Bead) (model.Bead, error) {
+	return s.CreateExcluding(b, nil)
+}
+
+// CreateExcluding adds a bead to the store and persists to disk.
+// If b.ID is empty, a collision-free ID is generated that is also absent from
+// the excluded set, enabling cross-project uniqueness.
+func (s *Store) CreateExcluding(b model.Bead, excluded map[string]struct{}) (model.Bead, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if b.ID == "" {
-		b.ID = s.generateUniqueID()
+		b.ID = s.generateUniqueIDExcluding(excluded)
 	} else if _, exists := s.beads[b.ID]; exists {
 		return model.Bead{}, fmt.Errorf("bead %s already exists", b.ID)
 	}

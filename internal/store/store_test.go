@@ -475,6 +475,88 @@ func TestLoadMigratesMixedStatuses(t *testing.T) {
 	}
 }
 
+// --- CreateExcluding tests ---
+
+func TestCreateExcludingNeverReturnsExcludedID(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	// Build a large exclusion set using IDs in the typical generated format.
+	excluded := map[string]struct{}{
+		"bd-aaaa": {},
+		"bd-bbbb": {},
+		"bd-cccc": {},
+		"bd-dddd": {},
+		"bd-eeee": {},
+	}
+
+	for i := 0; i < 50; i++ {
+		b := model.NewBead("Excluded test")
+		created, err := s.CreateExcluding(b, excluded)
+		if err != nil {
+			t.Fatalf("iteration %d: unexpected error: %v", i, err)
+		}
+		if _, found := excluded[created.ID]; found {
+			t.Fatalf("iteration %d: returned excluded ID %q", i, created.ID)
+		}
+	}
+}
+
+func TestCreateExcludingWithNilExclusionSetBehavesLikeCreate(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	b := model.NewBead("Nil exclusion")
+	created, err := s.CreateExcluding(b, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("expected non-empty ID")
+	}
+
+	// Verify it is retrievable.
+	got, err := s.Get(created.ID)
+	if err != nil {
+		t.Fatalf("unexpected error getting bead: %v", err)
+	}
+	if got.Title != "Nil exclusion" {
+		t.Errorf("expected title 'Nil exclusion', got %q", got.Title)
+	}
+}
+
+func TestCreateExcludingWithEmptyExclusionSetBehavesLikeCreate(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	b := model.NewBead("Empty exclusion")
+	created, err := s.CreateExcluding(b, map[string]struct{}{})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("expected non-empty ID")
+	}
+}
+
+func TestCreateStillWorksAfterRefactor(t *testing.T) {
+	s, _ := Load(tempPath(t))
+
+	b := model.NewBead("Create regression")
+	created, err := s.Create(b)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if created.ID == "" {
+		t.Fatal("expected non-empty ID after Create")
+	}
+
+	got, err := s.Get(created.ID)
+	if err != nil {
+		t.Fatalf("unexpected error getting bead: %v", err)
+	}
+	if got.Title != "Create regression" {
+		t.Errorf("expected title 'Create regression', got %q", got.Title)
+	}
+}
+
 func TestAtomicWriteFileExists(t *testing.T) {
 	path := tempPath(t)
 	s, err := Load(path)
