@@ -460,3 +460,55 @@ func TestDeleteBead_UnblockedField(t *testing.T) {
 		t.Fatalf("expected 1 unblocked bead, got %d", len(unblockedList))
 	}
 }
+
+func TestCreateBead_SingleProject_NoRegression(t *testing.T) {
+	srv := crudServer(t)
+
+	b1 := createViaAPI(t, srv, map[string]any{"title": "First"})
+	b2 := createViaAPI(t, srv, map[string]any{"title": "Second"})
+
+	if b1.ID == "" || b2.ID == "" {
+		t.Fatal("expected non-empty IDs")
+	}
+	if b1.ID == b2.ID {
+		t.Fatalf("expected unique IDs, got %q for both", b1.ID)
+	}
+}
+
+func TestCreateBead_MultiProject_CrossProjectUniqueness(t *testing.T) {
+	dirA := t.TempDir()
+	dirB := t.TempDir()
+
+	storeA, err := store.Load(filepath.Join(dirA, "a.json"))
+	if err != nil {
+		t.Fatalf("Load storeA: %v", err)
+	}
+	storeB, err := store.Load(filepath.Join(dirB, "b.json"))
+	if err != nil {
+		t.Fatalf("Load storeB: %v", err)
+	}
+
+	// Seed a known ID into store A.
+	seed := model.Bead{ID: "bd-aaaa", Title: "seed"}
+	if _, err := storeA.Create(seed); err != nil {
+		t.Fatalf("seed create: %v", err)
+	}
+
+	p := NewMultiStoreProvider([]ProviderEntry{
+		{Name: "projA", Token: testToken + "-a", Store: storeA},
+		{Name: "projB", Token: testToken, Store: storeB},
+	})
+	srv, err := New(Config{Port: 0, DataFile: filepath.Join(dirB, "b.json"), LogOutput: io.Discard}, p)
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	srv.Store = storeB
+
+	// Create many beads via the HTTP API (targeting store B) and verify none get the seeded ID.
+	for i := range 50 {
+		b := createViaAPI(t, srv, map[string]any{"title": "bead"})
+		if b.ID == "bd-aaaa" {
+			t.Fatalf("bead %d got ID %q which collides with store A seed", i, b.ID)
+		}
+	}
+}

@@ -146,7 +146,14 @@ func (s *Server) handleCreateBead(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	created, err := st.Create(b)
+	excluded := map[string]struct{}{}
+	for _, proj := range s.provider.Projects() {
+		for _, existing := range proj.Store.All() {
+			excluded[existing.ID] = struct{}{}
+		}
+	}
+
+	created, err := st.CreateExcluding(b, excluded)
 	if err != nil {
 		jsonError(w, err.Error(), http.StatusBadRequest)
 		return
