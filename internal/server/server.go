@@ -31,11 +31,12 @@ type Config struct {
 
 // Server is the HTTP server for the beads API.
 type Server struct {
-	Router   *chi.Mux
-	Store    *store.Store // exported for direct store access in tests
-	provider StoreProvider
-	config   Config
-	logger   *log.Logger
+	Router      *chi.Mux
+	Store       *store.Store // exported for direct store access in tests
+	provider    StoreProvider
+	config      Config
+	logger      *log.Logger
+	broadcaster *broadcaster
 }
 
 // New creates a new Server with the given config and provider.
@@ -50,10 +51,11 @@ func New(cfg Config, p StoreProvider) (*Server, error) {
 	}
 
 	srv := &Server{
-		Router:   chi.NewRouter(),
-		provider: p,
-		config:   cfg,
-		logger:   log.New(logOut, "", log.LstdFlags),
+		Router:      chi.NewRouter(),
+		provider:    p,
+		config:      cfg,
+		logger:      log.New(logOut, "", log.LstdFlags),
+		broadcaster: newBroadcaster(),
 	}
 
 	srv.Router.Use(middleware.Recoverer)
