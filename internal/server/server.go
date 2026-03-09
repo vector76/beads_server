@@ -67,6 +67,7 @@ func New(cfg Config, p StoreProvider) (*Server, error) {
 	srv.Router.Get("/api/v1/health", srv.handleHealth)
 	srv.Router.Get("/api/v1/version", srv.handleVersion)
 	srv.Router.Get("/api/v1/beads/status", srv.handleBeadsStatus)
+	srv.Router.Get("/events", srv.handleSSE)
 
 	// All other API routes require auth
 	srv.Router.Group(func(r chi.Router) {
@@ -167,4 +168,10 @@ func (rw *responseWriter) Write(b []byte) (int, error) {
 		rw.wroteHeader = true
 	}
 	return rw.ResponseWriter.Write(b)
+}
+
+func (rw *responseWriter) Flush() {
+	if f, ok := rw.ResponseWriter.(http.Flusher); ok {
+		f.Flush()
+	}
 }
