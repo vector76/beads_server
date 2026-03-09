@@ -189,6 +189,48 @@ func (s *Server) handleClean(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, cleanResponse{Removed: removed})
 }
 
+// statusUnknown is the sentinel returned for IDs not found in any project store.
+const statusUnknown = "unknown"
+
+// handleBeadsStatus handles GET /api/v1/beads/status (unauthenticated, cross-project).
+func (s *Server) handleBeadsStatus(w http.ResponseWriter, r *http.Request) {
+	raw := r.URL.Query().Get("ids")
+
+	// Deduplicate IDs
+	seen := make(map[string]struct{})
+	for _, part := range strings.Split(raw, ",") {
+		id := strings.TrimSpace(part)
+		if id != "" {
+			seen[id] = struct{}{}
+		}
+	}
+
+	if len(seen) == 0 {
+		jsonOK(w, map[string]string{})
+		return
+	}
+
+	ids := make([]string, 0, len(seen))
+	for id := range seen {
+		ids = append(ids, id)
+	}
+
+	result := make(map[string]string)
+	for _, proj := range s.provider.Projects() {
+		for id, status := range proj.Store.StatusMap(ids) {
+			result[id] = status
+		}
+	}
+
+	for _, id := range ids {
+		if _, found := result[id]; !found {
+			result[id] = statusUnknown
+		}
+	}
+
+	jsonOK(w, result)
+}
+
 // intParam parses an integer query parameter with a default value.
 func intParam(val string, defaultVal int) int {
 	if val == "" {

@@ -64,6 +64,7 @@ func New(cfg Config, p StoreProvider) (*Server, error) {
 	srv.Router.Get("/bead/{project}/{id}", srv.handleBeadDetail)
 	srv.Router.Get("/api/v1/health", srv.handleHealth)
 	srv.Router.Get("/api/v1/version", srv.handleVersion)
+	srv.Router.Get("/api/v1/beads/status", srv.handleBeadsStatus)
 
 	// All other API routes require auth
 	srv.Router.Group(func(r chi.Router) {
