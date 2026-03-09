@@ -195,6 +195,7 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 <body>
 <button class="theme-toggle" aria-label="Toggle dark mode">{{if eq .Theme "dark"}}☀️{{else}}🌙{{end}}</button>
 <h1>Beads Dashboard</h1>
+<div id="bead-list">
 {{range .Projects}}{{$proj := .Name}}
 <details class="section" open>
 <summary>
@@ -241,25 +242,32 @@ var dashboardTmpl = template.Must(template.New("dashboard").Funcs(template.FuncM
 
 </details>
 {{end}}
+</div>
 <script>
-document.querySelectorAll("time[datetime]").forEach(function(el) {
-  var d = new Date(el.getAttribute("datetime"));
-  if (isNaN(d)) return;
-  var pad = function(n) { return n < 10 ? "0" + n : "" + n; };
-  var formatted = d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()) +
-    " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
-  var tz = d.toLocaleTimeString(undefined, {timeZoneName: "short"}).split(" ").pop();
-  el.textContent = formatted + " " + tz;
-});
-document.querySelectorAll("details.section").forEach(function(el) {
-  var h2 = el.querySelector("summary h2");
-  if (!h2) return;
-  var key = "section-open:" + h2.textContent.trim();
-  if (localStorage.getItem(key) === "false") { el.removeAttribute("open"); }
-  el.addEventListener("toggle", function() {
-    localStorage.setItem(key, el.open ? "true" : "false");
+function localizeTimestamps(root) {
+  (root || document).querySelectorAll("time[datetime]").forEach(function(el) {
+    var d = new Date(el.getAttribute("datetime"));
+    if (isNaN(d)) return;
+    var pad = function(n) { return n < 10 ? "0" + n : "" + n; };
+    var formatted = d.getFullYear() + "-" + pad(d.getMonth()+1) + "-" + pad(d.getDate()) +
+      " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+    var tz = d.toLocaleTimeString(undefined, {timeZoneName: "short"}).split(" ").pop();
+    el.textContent = formatted + " " + tz;
   });
-});
+}
+function restoreDetailsState(root) {
+  (root || document).querySelectorAll("details.section").forEach(function(el) {
+    var h2 = el.querySelector("summary h2");
+    if (!h2) return;
+    var key = "section-open:" + h2.textContent.trim();
+    if (localStorage.getItem(key) === "false") { el.removeAttribute("open"); }
+    el.addEventListener("toggle", function() {
+      localStorage.setItem(key, el.open ? "true" : "false");
+    });
+  });
+}
+localizeTimestamps();
+restoreDetailsState();
 var html = document.documentElement;
 if (!html.hasAttribute("data-theme")) {
   html.setAttribute("data-theme", window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -277,6 +285,23 @@ if (themeBtn) {
     syncToggleBtn();
   });
 }
+function fetchAndSwap() {
+  var savedScroll = window.scrollY;
+  fetch('/').then(function(resp) { return resp.text(); }).then(function(freshHtml) {
+    var doc = new DOMParser().parseFromString(freshHtml, 'text/html');
+    var newList = doc.getElementById('bead-list');
+    var liveList = document.getElementById('bead-list');
+    if (newList && liveList) {
+      liveList.parentNode.replaceChild(newList, liveList);
+      window.scrollTo(0, savedScroll);
+      localizeTimestamps(newList);
+      restoreDetailsState(newList);
+    }
+  });
+}
+var es = new EventSource('/events');
+es.onopen = function() { fetchAndSwap(); };
+es.onmessage = function() { fetchAndSwap(); };
 </script>
 </body>
 </html>

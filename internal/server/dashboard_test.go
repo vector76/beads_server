@@ -149,8 +149,8 @@ func TestDashboardContainsTimezoneScript(t *testing.T) {
 	srv.Router.ServeHTTP(w, req)
 
 	body := w.Body.String()
-	if !strings.Contains(body, `document.querySelectorAll("time[datetime]")`) {
-		t.Error("expected inline timezone conversion script in dashboard HTML")
+	if !strings.Contains(body, `querySelectorAll("time[datetime]")`) {
+		t.Error("expected timezone conversion script in dashboard HTML")
 	}
 }
 
@@ -986,6 +986,15 @@ func TestDashboardDepthShownNextToLock(t *testing.T) {
 	depth2Row := `<td style="white-space:nowrap; padding:0.2em 0.3em">🔒2</td><td><a href="/bead/default/` + a.ID + `">`
 	if !strings.Contains(body, depth2Row) {
 		t.Errorf("expected 🔒2 for depth-2 bead %s", a.ID)
+	}
+}
+
+func TestDashboardHasBeadListDiv(t *testing.T) {
+	srv := crudServer(t)
+	createViaAPI(t, srv, map[string]any{"title": "Bead list div test", "status": "open"})
+	body := getDashboard(t, srv)
+	if !strings.Contains(body, `id="bead-list"`) {
+		t.Error(`expected element with id="bead-list" in dashboard HTML`)
 	}
 }
 
