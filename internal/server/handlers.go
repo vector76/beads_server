@@ -143,6 +143,7 @@ func (s *Server) handleCreateBead(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		jsonCreated(w, created)
+		s.broadcaster.publish()
 		return
 	}
 
@@ -160,6 +161,7 @@ func (s *Server) handleCreateBead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonCreated(w, created)
+	s.broadcaster.publish()
 }
 
 // handleGetBead handles GET /api/v1/beads/:id.
@@ -258,6 +260,7 @@ func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			jsonOK(w, updated)
+			s.broadcaster.publish()
 			return
 		}
 		// Move into
@@ -268,6 +271,7 @@ func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		jsonOK(w, updated)
+		s.broadcaster.publish()
 		return
 	}
 
@@ -347,11 +351,13 @@ func (s *Server) handleUpdateBead(w http.ResponseWriter, r *http.Request) {
 		unblocked := st.GetUnblocked(existing.ID)
 		if len(unblocked) > 0 {
 			jsonOK(w, unblockedResponse{Bead: updated, Unblocked: unblocked})
+			s.broadcaster.publish()
 			return
 		}
 	}
 
 	jsonOK(w, updated)
+	s.broadcaster.publish()
 }
 
 // handleDeleteBead handles DELETE /api/v1/beads/:id.
@@ -397,10 +403,12 @@ func (s *Server) handleDeleteBead(w http.ResponseWriter, r *http.Request) {
 	unblocked := st.GetUnblocked(existing.ID)
 	if len(unblocked) > 0 {
 		jsonOK(w, unblockedResponse{Bead: deleted, Unblocked: unblocked})
+		s.broadcaster.publish()
 		return
 	}
 
 	jsonOK(w, deleted)
+	s.broadcaster.publish()
 }
 
 // isTerminalStatus returns true for statuses that could unblock other beads.

@@ -63,6 +63,7 @@ func (s *Server) handleAddComment(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonCreated(w, updated)
+	s.broadcaster.publish()
 }
 
 // handleLinkBead handles POST /api/v1/beads/:id/link.
@@ -122,6 +123,7 @@ func (s *Server) handleLinkBead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonOK(w, updated)
+	s.broadcaster.publish()
 }
 
 // handleUnlinkBead handles DELETE /api/v1/beads/:id/link/:other_id.
@@ -159,6 +161,7 @@ func (s *Server) handleUnlinkBead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonOK(w, updated)
+	s.broadcaster.publish()
 }
 
 // handleGetDeps handles GET /api/v1/beads/:id/deps.

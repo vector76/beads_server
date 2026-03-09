@@ -149,6 +149,7 @@ func (s *Server) handleClaimBead(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonOK(w, claimed)
+	s.broadcaster.publish()
 }
 
 // cleanRequest is the JSON body for the clean operation.
@@ -187,6 +188,7 @@ func (s *Server) handleClean(w http.ResponseWriter, r *http.Request) {
 	}
 
 	jsonOK(w, cleanResponse{Removed: removed})
+	s.broadcaster.publish()
 }
 
 // statusUnknown is the sentinel returned for IDs not found in any project store.
