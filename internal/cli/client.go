@@ -1,11 +1,14 @@
 package cli
 
 import (
+	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 )
 
 const defaultURL = "http://localhost:9999"
@@ -84,6 +87,66 @@ func (c *Client) Do(method, path string, body any) (json.RawMessage, error) {
 	}
 
 	return json.RawMessage(respBody), nil
+}
+
+// StreamSSE opens a connection to the /events SSE endpoint and returns two
+// buffered channels: a signal channel that receives a value for each SSE event,
+// and an error channel that receives nil on clean context cancellation or a
+// non-nil error on unexpected connection failure.
+func (c *Client) StreamSSE(ctx context.Context) (<-chan struct{}, <-chan error) {
+	signals := make(chan struct{}, 16)
+	errs := make(chan error, 1)
+
+	go func() {
+		defer close(errs)
+		defer close(signals)
+
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.BaseURL+"/events", nil)
+		if err != nil {
+			errs <- fmt.Errorf("creating SSE request: %w", err)
+			return
+		}
+		req.Header.Set("Accept", "text/event-stream")
+		if c.Token != "" {
+			req.Header.Set("Authorization", "Bearer "+c.Token)
+		}
+
+		resp, err := c.HTTPClient.Do(req)
+		if err != nil {
+			if ctx.Err() != nil {
+				errs <- nil
+			} else {
+				errs <- fmt.Errorf("SSE connect: %w", err)
+			}
+			return
+		}
+		defer resp.Body.Close()
+
+		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+			errs <- fmt.Errorf("SSE HTTP %d", resp.StatusCode)
+			return
+		}
+
+		scanner := bufio.NewScanner(resp.Body)
+		for scanner.Scan() {
+			line := scanner.Text()
+			if strings.HasPrefix(line, "data:") {
+				signals <- struct{}{}
+			}
+		}
+
+		if ctx.Err() != nil {
+			errs <- nil
+		} else {
+			scanErr := scanner.Err()
+			if scanErr == nil {
+				scanErr = io.EOF
+			}
+			errs <- fmt.Errorf("SSE stream ended: %w", scanErr)
+		}
+	}()
+
+	return signals, errs
 }
 
 // prettyJSON formats a json.RawMessage with 2-space indentation.
