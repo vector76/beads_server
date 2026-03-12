@@ -82,6 +82,7 @@ func NewRootCmd() *cobra.Command {
 		newLinkCmd(),
 		newUnlinkCmd(),
 		newDepsCmd(),
+		newWaitReadyCmd(),
 	} {
 		cmd.GroupID = "client"
 		root.AddCommand(cmd)
